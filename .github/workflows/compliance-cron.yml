@@ -1,0 +1,35 @@
+name: Compliance Cron
+
+# Erinnerungen (Aufgaben, Control-Pruefungen, VVT/AVV), Ueberwachung der
+# 72-Stunden-Meldefrist und montags der Wochenbericht.
+# Ohne gesetzte Secrets endet der Lauf als gruener No-op.
+
+on:
+  schedule:
+    - cron: "0 5 * * *"      # 05:00 UTC (ca. 06:00/07:00 Uhr DE)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Nur protokollieren, nichts senden/schreiben"
+        type: boolean
+        default: true
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compliance-Cron ausfuehren
+        env:
+          CC_TENANT_ID: ${{ secrets.CC_TENANT_ID }}
+          CC_CLIENT_ID: ${{ secrets.CC_CLIENT_ID }}
+          CC_CLIENT_SECRET: ${{ secrets.CC_CLIENT_SECRET }}
+          CC_SITE_HOST: dihag.sharepoint.com
+          CC_SITE_PATH: /sites/IT
+          CC_SENDER: administrator@dihag.com
+          CC_APP_URL: https://dfedorov12.github.io/compliance/
+          CC_DRY_RUN: ${{ inputs.dry_run }}
+        run: python cron/compliance_cron.py

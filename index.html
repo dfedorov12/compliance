@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DIHAG Compliance-Cockpit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Exo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?v=1">
+  <script src="https://alcdn.msauth.net/browser/2.38.1/js/msal-browser.min.js"></script>
+</head>
+<body>
+  <header class="no-print">
+    <div class="header-inner">
+      <div class="brand">
+        <span class="brand-logo">C</span>
+        <div>
+          <h1>Compliance-Cockpit</h1>
+          <span class="brand-sub">Microsoft 365 · ISMS · Datenschutz</span>
+        </div>
+      </div>
+      <div class="user-chip" id="userChip" hidden>
+        <div class="user-text">
+          <span id="userName"></span>
+          <span id="userRolle" class="user-rolle"></span>
+        </div>
+        <button id="btnLogout" class="btn-ghost" title="Abmelden">Abmelden</button>
+      </div>
+    </div>
+    <nav id="mainNav" hidden>
+      <button class="nav-btn active" data-view="dashboard">Dashboard</button>
+      <button class="nav-btn" data-view="purview">Microsoft 365</button>
+      <button class="nav-btn" data-view="controls">Controls</button>
+      <button class="nav-btn" data-view="aufgaben">Aufgaben</button>
+      <button class="nav-btn" data-view="risiken">Risiken</button>
+      <button class="nav-btn" data-view="datenschutz">Datenschutz</button>
+      <button class="nav-btn" data-view="berichte">Berichte</button>
+      <button class="nav-btn" data-view="einstellungen" id="navEinstellungen" hidden>Einstellungen</button>
+      <button class="nav-btn" data-view="hilfe">Hilfe</button>
+    </nav>
+  </header>
+
+  <main id="mainContent" hidden>
+    <section id="view-dashboard" class="view active"></section>
+    <section id="view-purview" class="view"></section>
+    <section id="view-controls" class="view"></section>
+    <section id="view-aufgaben" class="view"></section>
+    <section id="view-risiken" class="view"></section>
+    <section id="view-datenschutz" class="view"></section>
+    <section id="view-berichte" class="view"></section>
+    <section id="view-einstellungen" class="view"></section>
+
+    <section id="view-hilfe" class="view">
+      <div class="card help">
+        <h2>Das Compliance-Cockpit in Kürze</h2>
+        <p>Das Cockpit bündelt zwei Welten: die <strong>Live-Daten aus Microsoft 365 und Purview</strong>
+           (Warnungen, Protokolle, Bezeichnungen, eDiscovery, Betroffenenanfragen, Geräte) und die
+           <strong>eigene Governance-Schicht</strong> (Controls nach ISO 27001, NIS2, TISAX und DSGVO,
+           Aufgaben, Risiken, Verarbeitungsverzeichnis, TOM, Auftragsverarbeiter, Vorfälle).
+           So entsteht aus Einzelmeldungen ein prüffähiger Nachweis.</p>
+
+        <h3>Dashboard</h3>
+        <p>Kennzahlen auf einen Blick: Umsetzungsgrad der Controls, offene und überfällige Aufgaben,
+           hohe Risiken, offene Vorfälle sowie die Live-Kacheln aus Microsoft 365. Darunter stehen
+           alle Fristen der nächsten 30 Tage.</p>
+
+        <h3>Microsoft 365</h3>
+        <ul>
+          <li><strong>Warnungen &amp; Vorfälle</strong> – Sicherheits- und DLP-Warnungen; einzelne
+              Warnungen lassen sich bearbeiten, schließen oder als Aufgabe übernehmen.</li>
+          <li><strong>Überwachungsprotokoll</strong> – Suche im einheitlichen Audit-Log (wie in Purview)
+              plus sofort verfügbares Entra-Verzeichnisprotokoll, jeweils mit CSV-Export.</li>
+          <li><strong>Klassifizierung &amp; Aufbewahrung</strong> – veröffentlichte Vertraulichkeits- und
+              Aufbewahrungsbezeichnungen; neue Aufbewahrungsbezeichnungen können direkt angelegt werden.</li>
+          <li><strong>eDiscovery</strong>, <strong>Betroffenenanfragen</strong>, <strong>Identität &amp;
+              Zugriff</strong> (bedingter Zugriff, privilegierte Rollen), <strong>Geräte</strong> und
+              <strong>Secure Score</strong>.</li>
+        </ul>
+
+        <h3>Controls</h3>
+        <p>Der Normenkatalog wird einmalig importiert und danach gepflegt: Status, Reifegrad (0–5),
+           Verantwortliche, Umsetzung und Nachweise. Zu vielen Controls liefert die App auf Knopfdruck
+           einen <strong>Live-Nachweis aus Microsoft 365</strong> – etwa die Zahl aktiver DLP-Richtlinien
+           für „Verhinderung von Datenlecks“ – der sich als Nachweis mit Stichtag übernehmen lässt.
+           Dateien (Screenshots, Protokolle, Konzepte) landen in der Bibliothek
+           <em>Compliance_Nachweise</em>.</p>
+
+        <h3>Aufgaben &amp; Risiken</h3>
+        <p>Maßnahmen mit Verantwortlichem und Frist, wahlweise nur die eigenen. Risiken werden nach
+           Eintrittswahrscheinlichkeit und Auswirkung bewertet und erscheinen in der 5×5-Matrix.</p>
+
+        <h3>Datenschutz</h3>
+        <p>Verarbeitungsverzeichnis (Art. 30), TOM (Art. 32), Auftragsverarbeiter (Art. 28) und das
+           Vorfallregister. Bei Datenpannen läuft die <strong>72-Stunden-Frist</strong> sichtbar mit;
+           ein Meldeentwurf nach Art. 33 lässt sich erzeugen und an den Datenschutzbeauftragten senden.</p>
+
+        <h3>Berichte</h3>
+        <p>Managementbericht für Geschäftsleitung und Auditoren (druck- und PDF-fähig) sowie der
+           <strong>Nachweis-Snapshot</strong>: alle Microsoft-365-Signale zum Stichtag in einer Übersicht,
+           exportierbar als CSV – praktisch als Auditnachweis.</p>
+
+        <h3>Rollen</h3>
+        <p>Administratoren pflegen Einstellungen, Listen und Kataloge. Datenschutzbeauftragter, CISO und
+           Auditoren werden in den Einstellungen hinterlegt. Beim ersten Start gilt der angemeldete
+           Benutzer als Administrator, bis Administratoren eingetragen sind.</p>
+
+        <h3>Grenzen</h3>
+        <p>Nicht jede Purview-Funktion besitzt eine Programmierschnittstelle. <strong>DLP-Richtlinien,
+           Kommunikationscompliance und Insider-Risikomanagement</strong> lassen sich weiterhin nur im
+           Purview-Portal bzw. per PowerShell konfigurieren; hier zeigt das Cockpit die daraus
+           entstehenden Warnungen. Fehlt eine Berechtigung, blendet die App den betroffenen Bereich
+           mit einem Hinweis aus, statt abzubrechen.</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="loadingScreen">
+    <div class="spinner"></div>
+    <p id="loadingText">Anmeldung läuft …</p>
+  </div>
+
+  <div id="detailModal" class="modal" hidden>
+    <div class="modal-content">
+      <button class="modal-close" id="btnModalClose">&times;</button>
+      <h2 id="modalTitle"></h2>
+      <div id="modalBody"></div>
+      <div id="modalActions" class="modal-btns" hidden></div>
+    </div>
+  </div>
+
+  <div id="toast" hidden></div>
+
+  <script src="js/config.js?v=1"></script>
+  <script src="js/graph.js?v=1"></script>
+  <script src="js/frameworks.js?v=1"></script>
+  <script src="js/schema.js?v=1"></script>
+  <script src="js/data.js?v=1"></script>
+  <script src="js/ui.js?v=1"></script>
+  <script src="js/purview.js?v=1"></script>
+  <script src="js/views.js?v=1"></script>
+  <script src="js/demo.js?v=1"></script>
+  <script src="js/app.js?v=1"></script>
+</body>
+</html>
