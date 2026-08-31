@@ -117,7 +117,7 @@ const Store = {
       erinnerungTageVorher: 14,
       eskalationTageNach: 7,
       erinnerungenAktiv: true,
-      rmsUrl: "https://richtlinienmanagement.dihag-extern.com/",
+      rmsUrl: "https://rms.dihag.de/",
       organisation: "DIHAG Foundry Group"
     };
     try {
