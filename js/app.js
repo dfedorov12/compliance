@@ -194,7 +194,12 @@ async function renderEinstellungen(el) {
             : r.angelegt ? "neu angelegt"
             : r.spalten && r.spalten.length ? "Spalten ergänzt: " + esc(r.spalten.join(", "))
             : "vorhanden" }
-      ]) + hinweisBox(`Angelegt werden alle Governance-Listen, die Konfigurationsliste und die
+      ]) + (bericht.some(r => /access denied|zugriff verweigert/i.test(r.fehler || ""))
+        ? hinweisBox(`<strong>SharePoint hat das Anlegen abgelehnt.</strong> Prüfen Sie, ob die App-Registrierung
+            die Berechtigung <code>Sites.Manage.All</code> mit Administratorzustimmung besitzt
+            (<code>setup-compliance.ps1</code> erneut ausführen) und ob Ihr Konto auf
+            <code>${esc(CC_CONFIG.sitePath)}</code> Listen verwalten darf.`, "warn")
+        : "") + hinweisBox(`Angelegt werden alle Governance-Listen, die Konfigurationsliste und die
         Dokumentbibliothek <strong>${esc(CC_CONFIG.nachweiseLibrary)}</strong> für Nachweisdateien.`, "info");
     } catch (e) {
       protokoll.innerHTML = fehlerBox(e, "Listen anlegen");
@@ -219,13 +224,12 @@ async function renderEinstellungen(el) {
   document.getElementById("btnRechte").onclick = async () => {
     const pruefungen = [
       { label: "SharePoint-Listen (Sites.ReadWrite.All)", test: () => getSiteId() },
+      { label: "Listen anlegen (Sites.Manage.All)", test: () => getToken(CC_SCOPES.verwalten) },
       { label: "Benutzerverzeichnis (User.Read.All)", test: () => Purview.benutzerStatistik() },
       { label: "Secure Score (SecurityEvents.Read.All)", test: () => Purview.secureScore() },
       { label: "Warnungen (SecurityAlert.*)", test: () => Purview.alerts({ top: 1 }) },
       { label: "Vorfälle (SecurityIncident.Read.All)", test: () => Purview.incidents({ top: 1 }) },
-      { label: "Überwachungsprotokoll (AuditLogsQuery.Read.All)", test: () => Purview.auditQueryStart({
-          von: new Date(Date.now() - 86400000).toISOString().slice(0, 10),
-          bis: new Date().toISOString().slice(0, 10) }) },
+      { label: "Überwachungsprotokoll (AuditLogsQuery.Read.All)", test: () => Purview.auditQueryListe() },
       { label: "Entra-Protokoll (AuditLog.Read.All)", test: () => Purview.directoryAudits({ top: 1 }) },
       { label: "Vertraulichkeitsbezeichnungen (InformationProtectionPolicy.Read)", test: () => Purview.sensitivityLabels() },
       { label: "Aufbewahrung (RecordsManagement.*)", test: () => Purview.retentionLabels() },
@@ -246,8 +250,15 @@ async function renderEinstellungen(el) {
         await p.test();
         tr.lastElementChild.innerHTML = `<span class="status st-green">verfügbar</span>`;
       } catch (e) {
-        const grund = e.name === "BerechtigungFehlt" ? "Zustimmung fehlt" : (e.message || "").slice(0, 120);
-        tr.lastElementChild.innerHTML = `<span class="status st-red">nicht verfügbar</span> <span class="muted">${esc(grund)}</span>`;
+        const grund = e.name === "BerechtigungFehlt"
+          ? "Zustimmung fehlt: " + e.scopes.join(", ")
+          : (e.status ? e.status + " " : "") + (e.message || "").slice(0, 300);
+        // Bei mehreren probierten Endpunkten jede Antwort einzeln zeigen.
+        const details = e.versuche && e.versuche.length > 1
+          ? `<details class="versuche"><summary>${e.versuche.length} Endpunkte probiert</summary><ul>${
+              e.versuche.map(v => `<li>${esc(v.slice(0, 300))}</li>`).join("")}</ul></details>`
+          : "";
+        tr.lastElementChild.innerHTML = `<span class="status st-red">nicht verfügbar</span> <span class="muted">${esc(grund)}</span>${details}`;
       }
     }
   };

@@ -5,19 +5,28 @@
 // Berechtigung; fehlt sie, wirft graphFetch einen BerechtigungFehlt-Fehler,
 // den die Ansicht als Hinweis darstellt (statt die Seite abstürzen zu lassen).
 
-// Probiert mehrere Endpunkte (v1.0 zuerst, dann beta) – Purview-APIs wandern
-// laufend von beta nach v1.0.
+// Probiert mehrere Endpunkte nacheinander. Purview-APIs wandern laufend von beta
+// nach v1.0 und verhalten sich je nach Pfad (/me oder mandantenweit) verschieden,
+// deshalb geht es auch nach einem 403 mit der nächsten Variante weiter. Antwortet
+// keine, trägt der Fehler alle Versuche in e.versuche (für „Berechtigungen prüfen“).
 async function graphErsterTreffer(varianten) {
-  let letzter = null;
+  const versuche = [];
+  let verweigert = null, letzter = null;
   for (const v of varianten) {
+    const version = v.version || "v1.0";
     try {
-      return await graphFetch(v.path, { version: v.version || "v1.0", scopes: v.scopes });
+      return await graphFetch(v.path, { version, scopes: v.scopes });
     } catch (e) {
-      if (e.name === "BerechtigungFehlt" || e.status === 401 || e.status === 403) throw e;
-      letzter = e;
+      // Fehlt die Zustimmung, scheitert jeder Pfad gleich – sofort melden.
+      if (e.name === "BerechtigungFehlt") throw e;
+      versuche.push(`${version} ${v.path.split("?")[0]} → ${e.status || "?"} ${e.message}`);
+      if (e.status === 401 || e.status === 403) verweigert = verweigert || e;
+      else letzter = e;
     }
   }
-  throw letzter || new Error("Kein Endpunkt erreichbar.");
+  const fehler = verweigert || letzter || new Error("Kein Endpunkt erreichbar.");
+  fehler.versuche = versuche;
+  throw fehler;
 }
 
 const Purview = {
@@ -87,9 +96,11 @@ const Purview = {
   // --------------------------------------------------------------- Labels ---
   async sensitivityLabels() {
     const d = await graphErsterTreffer([
+      { path: "/me/security/informationProtection/sensitivityLabels", scopes: CC_SCOPES.labels },
+      { path: "/me/security/informationProtection/sensitivityLabels", version: "beta", scopes: CC_SCOPES.labels },
       { path: "/security/informationProtection/sensitivityLabels", scopes: CC_SCOPES.labels },
       { path: "/security/informationProtection/sensitivityLabels", version: "beta", scopes: CC_SCOPES.labels },
-      { path: "/me/informationProtection/policy/labels", scopes: CC_SCOPES.labels }
+      { path: "/me/informationProtection/policy/labels", version: "beta", scopes: CC_SCOPES.labels }
     ]);
     return (d.value || []).map(l => ({
       id: l.id, name: l.name || l.displayName, beschreibung: l.description || l.tooltip,
@@ -100,8 +111,9 @@ const Purview = {
 
   async retentionLabels() {
     const d = await graphErsterTreffer([
-      { path: "/security/labels/retentionLabels?$top=200", scopes: CC_SCOPES.retention },
-      { path: "/security/labels/retentionLabels?$top=200", version: "beta", scopes: CC_SCOPES.retention }
+      // Dieser Endpunkt lehnt $top ab („Query option 'Top' is not allowed“).
+      { path: "/security/labels/retentionLabels", scopes: CC_SCOPES.retention },
+      { path: "/security/labels/retentionLabels", version: "beta", scopes: CC_SCOPES.retention }
     ]);
     return (d.value || []).map(l => ({
       id: l.id, name: l.displayName, beschreibung: l.descriptionForUsers,
@@ -152,10 +164,25 @@ const Purview = {
 
   // ------------------------------------------- Betroffenenanfragen (DSGVO) ---
   async subjectRightsRequests() {
-    const d = await graphErsterTreffer([
-      { path: "/privacy/subjectRightsRequests?$top=100", scopes: CC_SCOPES.privacy },
-      { path: "/security/subjectRightsRequests?$top=100", version: "beta", scopes: CC_SCOPES.privacy }
-    ]);
+    let d;
+    try {
+      d = await graphErsterTreffer([
+        // Die Variante unter /privacy ist von Microsoft abgekündigt.
+        { path: "/security/subjectRightsRequests?$top=100", scopes: CC_SCOPES.privacy },
+        { path: "/security/subjectRightsRequests?$top=100", version: "beta", scopes: CC_SCOPES.privacy },
+        { path: "/privacy/subjectRightsRequests?$top=100", scopes: CC_SCOPES.privacy }
+      ]);
+    } catch (e) {
+      // Antwortet der Priva-Dienst gar nicht, ist er im Mandanten nicht aktiv.
+      if (/trafficmanager|not found/i.test(e.message || "")) {
+        const hinweis = new Error("Der Dienst für Betroffenenanfragen (Microsoft Priva) antwortet für diesen " +
+          "Mandanten nicht. Meist ist Priva Subject Rights Requests nicht lizenziert oder nicht eingerichtet.");
+        hinweis.status = e.status;
+        hinweis.versuche = e.versuche;
+        throw hinweis;
+      }
+      throw e;
+    }
     return (d.value || []).map(r => ({
       id: r.id, name: r.displayName, typ: r.type, status: r.status,
       betroffen: r.dataSubject ? [r.dataSubject.firstName, r.dataSubject.lastName].filter(Boolean).join(" ") : "",
@@ -195,6 +222,15 @@ const Purview = {
   },
 
   _auditVersion: "beta",
+
+  // Nur lesend: vorhandene Suchaufträge auflisten (für „Berechtigungen prüfen“,
+  // damit die Prüfung keinen echten Suchauftrag anlegt).
+  async auditQueryListe() {
+    return graphErsterTreffer([
+      { path: "/security/auditLog/queries", version: "beta", scopes: CC_SCOPES.audit },
+      { path: "/security/auditLog/queries", scopes: CC_SCOPES.audit }
+    ]);
+  },
 
   async auditQueryStatus(id) {
     return graphFetch(`/security/auditLog/queries/${id}`, { version: this._auditVersion, scopes: CC_SCOPES.audit });

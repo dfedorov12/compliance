@@ -33,6 +33,9 @@ const CC_CONFIG = {
 // konsentiertes Recht würde die ganze Anmeldung blockieren.
 const CC_SCOPES = {
   base:        ["User.Read", "User.ReadBasic.All", "Sites.ReadWrite.All", "Mail.Send"],
+  // Listen und Spalten anlegen: Sites.ReadWrite.All reicht dafür nicht, Graph
+  // verlangt Sites.Manage.All. Wird nur bei „Listen prüfen / anlegen“ angefordert.
+  verwalten:   ["Sites.Manage.All"],
   verzeichnis: ["User.Read.All"],
   alerts:      [CC_CONFIG.erlaubeSchreibaktionen ? "SecurityAlert.ReadWrite.All" : "SecurityAlert.Read.All",
                 "SecurityIncident.Read.All"],

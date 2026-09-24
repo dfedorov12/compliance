@@ -41,7 +41,8 @@ Angeforderte Berechtigungen (alle **delegiert**, keine Anwendungsberechtigungen)
 | Berechtigung | Wofür |
 |---|---|
 | `User.Read`, `User.ReadBasic.All`, `User.Read.All` | Anmeldung, Namen, Kontenstatistik |
-| `Sites.ReadWrite.All` | Governance-Listen und Nachweisbibliothek |
+| `Sites.ReadWrite.All` | Einträge in Governance-Listen und Nachweisbibliothek lesen/schreiben |
+| `Sites.Manage.All` | Listen, Spalten und Bibliothek anlegen („Listen prüfen / anlegen“) |
 | `Mail.Send` | Meldeentwurf an den DSB senden |
 | `SecurityEvents.Read.All` | Secure Score |
 | `SecurityAlert.ReadWrite.All` | Warnungen lesen, bearbeiten, schließen |

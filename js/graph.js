@@ -179,6 +179,7 @@ async function spEnsureList(listName, columns) {
   if (!vorhanden) {
     await graphFetch(`/sites/${siteId}/lists`, {
       method: "POST",
+      scopes: CC_SCOPES.verwalten,
       body: JSON.stringify({
         displayName: listName,
         list: { template: "genericList" },
@@ -200,6 +201,7 @@ async function spEnsureList(listName, columns) {
     try {
       await graphFetch(`/sites/${siteId}/lists/${encodeURIComponent(listName)}/columns`, {
         method: "POST",
+        scopes: CC_SCOPES.verwalten,
         body: JSON.stringify(spColumnDef(col))
       });
       neu.push(col.name);
@@ -214,6 +216,7 @@ async function spEnsureLibrary(name) {
   if (await spListExists(name)) return { angelegt: false };
   await graphFetch(`/sites/${siteId}/lists`, {
     method: "POST",
+    scopes: CC_SCOPES.verwalten,
     body: JSON.stringify({ displayName: name, list: { template: "documentLibrary" } })
   });
   delete _listIdCache[name];

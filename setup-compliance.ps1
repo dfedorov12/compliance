@@ -36,6 +36,7 @@ $Scopes = @(
     "User.ReadBasic.All"                     # Namen von Verantwortlichen
     "User.Read.All"                          # Benutzerstatistik (Gaeste, deaktiviert)
     "Sites.ReadWrite.All"                    # SharePoint-Listen der Governance-Schicht
+    "Sites.Manage.All"                       # Listen und Spalten anlegen (Einstellungen)
     "Mail.Send"                              # Meldeentwurf an den DSB senden
     "SecurityEvents.Read.All"                # Secure Score
     "SecurityIncident.Read.All"              # Vorfaelle Defender XDR
