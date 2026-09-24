@@ -40,6 +40,14 @@ function hinweisBox(text, typ = "info") {
   return `<div class="banner ${klasse}">${text}</div>`;
 }
 
+// „403 Forbidden“ statt „403 403 Forbidden“: Status nur voranstellen, wenn die
+// Meldung nicht ohnehin damit beginnt.
+function mitStatus(e) {
+  const msg = String((e && e.message) || "");
+  if (!e || !e.status || msg.startsWith(String(e.status))) return msg;
+  return e.status + " " + msg;
+}
+
 // Fehlerdarstellung, die fehlende Berechtigungen als Hinweis (nicht als Absturz) zeigt.
 function fehlerBox(e, kontext = "") {
   if (e && e.name === "BerechtigungFehlt") {
@@ -47,6 +55,9 @@ function fehlerBox(e, kontext = "") {
       `<strong>Berechtigung fehlt.</strong> Für ${esc(kontext || "diese Ansicht")} wird
        <code>${esc(e.scopes.join(", "))}</code> benötigt. Ein Administrator muss die Berechtigung
        in der App-Registrierung „DIHAG Compliance" hinzufügen und die Administratorzustimmung erteilen.`, "warn");
+  }
+  if (e && e.nichtLizenziert) {
+    return hinweisBox(`<strong>Nicht verfügbar: ${esc(kontext || "Dienst")}.</strong> ${esc(e.message)}`, "info");
   }
   const zusatz = e && e.berechtigung ? ` Benötigtes Recht: <code>${esc(e.berechtigung.join(", "))}</code>.` : "";
   return hinweisBox(`<strong>${esc(kontext || "Fehler")}:</strong> ${esc(e && e.message || e)}${zusatz}`, "fehler");

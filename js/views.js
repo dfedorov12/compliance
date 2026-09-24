@@ -141,7 +141,8 @@ async function renderDashboard(el) {
     }).catch(e => {
       platz.className = "stat-tile stat-fehlt";
       platz.innerHTML = `<div class="stat-num">–</div><div class="stat-label">${esc(k.label)}</div>
-        <div class="stat-sub">${e.name === "BerechtigungFehlt" ? "Berechtigung fehlt" : "nicht verfügbar"}</div>`;
+        <div class="stat-sub">${e.name === "BerechtigungFehlt" ? "Berechtigung fehlt"
+          : e.nichtLizenziert ? "nicht lizenziert" : "nicht verfügbar"}</div>`;
     });
   }
 }

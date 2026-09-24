@@ -42,7 +42,9 @@ $Scopes = @(
     "SecurityIncident.Read.All"              # Vorfaelle Defender XDR
     "AuditLogsQuery.Read.All"                # Einheitliches Ueberwachungsprotokoll
     "AuditLog.Read.All"                      # Entra-Verzeichnisprotokoll
-    "InformationProtectionPolicy.Read"       # Vertraulichkeitsbezeichnungen
+    "SensitivityLabels.Read.All"             # Vertraulichkeitsbezeichnungen (mandantenweit)
+    "SensitivityLabel.Read"                  # Vertraulichkeitsbezeichnungen (fuer den Benutzer)
+    "InformationProtectionPolicy.Read"       # Bezeichnungen, alte Schnittstelle (Rueckfall)
     "Policy.Read.All"                        # Bedingter Zugriff
     "RoleManagement.Read.Directory"          # Privilegierte Verzeichnisrollen
     "DeviceManagementConfiguration.Read.All" # Geraetekonformitaetsrichtlinien

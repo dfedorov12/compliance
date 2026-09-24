@@ -7,24 +7,31 @@
 
 // Probiert mehrere Endpunkte nacheinander. Purview-APIs wandern laufend von beta
 // nach v1.0 und verhalten sich je nach Pfad (/me oder mandantenweit) verschieden,
-// deshalb geht es auch nach einem 403 mit der nächsten Variante weiter. Antwortet
-// keine, trägt der Fehler alle Versuche in e.versuche (für „Berechtigungen prüfen“).
+// deshalb geht es auch nach einem 403 oder einer fehlenden Zustimmung mit der
+// nächsten Variante weiter (Varianten können unterschiedliche Rechte brauchen).
+// Antwortet keine, trägt der Fehler alle Versuche in e.versuche. Gemeldet wird
+// der Fehler, mit dem man am meisten anfangen kann: fehlende Zustimmung vor 403
+// vor allem anderen.
 async function graphErsterTreffer(varianten) {
   const versuche = [];
-  let verweigert = null, letzter = null;
+  let fehlend = null, verweigert = null, letzter = null;
   for (const v of varianten) {
     const version = v.version || "v1.0";
+    const pfad = `${version} ${v.path.split("?")[0]}`;
     try {
       return await graphFetch(v.path, { version, scopes: v.scopes });
     } catch (e) {
-      // Fehlt die Zustimmung, scheitert jeder Pfad gleich – sofort melden.
-      if (e.name === "BerechtigungFehlt") throw e;
-      versuche.push(`${version} ${v.path.split("?")[0]} → ${e.status || "?"} ${e.message}`);
+      if (e.name === "BerechtigungFehlt") {
+        versuche.push(`${pfad} → Zustimmung fehlt: ${e.scopes.join(", ")}`);
+        fehlend = fehlend || e;
+        continue;
+      }
+      versuche.push(`${pfad} → ${mitStatus(e) || "?"}`);
       if (e.status === 401 || e.status === 403) verweigert = verweigert || e;
       else letzter = e;
     }
   }
-  const fehler = verweigert || letzter || new Error("Kein Endpunkt erreichbar.");
+  const fehler = fehlend || verweigert || letzter || new Error("Kein Endpunkt erreichbar.");
   fehler.versuche = versuche;
   throw fehler;
 }
@@ -96,17 +103,36 @@ const Purview = {
   // --------------------------------------------------------------- Labels ---
   async sensitivityLabels() {
     const d = await graphErsterTreffer([
-      { path: "/me/security/informationProtection/sensitivityLabels", scopes: CC_SCOPES.labels },
-      { path: "/me/security/informationProtection/sensitivityLabels", version: "beta", scopes: CC_SCOPES.labels },
-      { path: "/security/informationProtection/sensitivityLabels", scopes: CC_SCOPES.labels },
-      { path: "/security/informationProtection/sensitivityLabels", version: "beta", scopes: CC_SCOPES.labels },
-      { path: "/me/informationProtection/policy/labels", version: "beta", scopes: CC_SCOPES.labels }
+      // Neue Schnittstelle: alle Bezeichnungen des Mandanten …
+      { path: "/security/dataSecurityAndGovernance/sensitivityLabels", scopes: CC_SCOPES.labels },
+      { path: "/security/dataSecurityAndGovernance/sensitivityLabels", version: "beta", scopes: CC_SCOPES.labels },
+      // … oder die für den angemeldeten Benutzer veröffentlichten.
+      { path: "/me/dataSecurityAndGovernance/sensitivityLabels", scopes: CC_SCOPES.labelsUser },
+      { path: "/me/dataSecurityAndGovernance/sensitivityLabels", version: "beta", scopes: CC_SCOPES.labelsUser },
+      // Alte Schnittstelle (wird von Microsoft abgelöst).
+      { path: "/security/informationProtection/sensitivityLabels", version: "beta", scopes: CC_SCOPES.labelsAlt }
     ]);
     return (d.value || []).map(l => ({
-      id: l.id, name: l.name || l.displayName, beschreibung: l.description || l.tooltip,
-      aktiv: l.isActive !== false, prioritaet: l.priority !== undefined ? l.priority : l.sensitivity,
+      id: l.id, name: l.name || l.displayName, beschreibung: l.description || l.toolTip || l.tooltip,
+      aktiv: l.isActive !== false && l.isEnabled !== false,
+      prioritaet: l.priority !== undefined ? l.priority : l.sensitivity,
       uebergeordnet: l.parent ? (l.parent.name || l.parent.displayName) : ""
     }));
+  },
+
+  // Lizenzen des angemeldeten Kontos (nur User.Read). Zeigt in „Berechtigungen
+  // prüfen“, ob Information Protection bzw. Priva überhaupt lizenziert sind –
+  // die häufigste Ursache für 403/500 bei Bezeichnungen und Betroffenenanfragen.
+  async lizenzen() {
+    const d = await graphFetch("/me/licenseDetails?$select=skuPartNumber,servicePlans");
+    const plaene = (d.value || []).flatMap(l => (l.servicePlans || [])
+      .filter(p => p.provisioningStatus !== "Disabled")
+      .map(p => p.servicePlanName));
+    return {
+      skus: (d.value || []).map(l => l.skuPartNumber),
+      informationProtection: plaene.filter(n => /^(RMS_S_|MIP_S_)/.test(n)),
+      priva: plaene.filter(n => /PRIVACY|PRIVA/i.test(n))
+    };
   },
 
   async retentionLabels() {
@@ -179,6 +205,7 @@ const Purview = {
           "Mandanten nicht. Meist ist Priva Subject Rights Requests nicht lizenziert oder nicht eingerichtet.");
         hinweis.status = e.status;
         hinweis.versuche = e.versuche;
+        hinweis.nichtLizenziert = true;
         throw hinweis;
       }
       throw e;

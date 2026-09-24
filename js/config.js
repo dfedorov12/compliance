@@ -42,7 +42,12 @@ const CC_SCOPES = {
   secureScore: ["SecurityEvents.Read.All"],
   audit:       ["AuditLogsQuery.Read.All"],
   entraAudit:  ["AuditLog.Read.All"],
-  labels:      ["InformationProtectionPolicy.Read"],
+  // Vertraulichkeitsbezeichnungen: neue Schnittstelle dataSecurityAndGovernance
+  // (mandantenweit bzw. für den Benutzer), die alte informationProtection nur noch
+  // als Rückfallebene.
+  labels:      ["SensitivityLabels.Read.All"],
+  labelsUser:  ["SensitivityLabel.Read"],
+  labelsAlt:   ["InformationProtectionPolicy.Read"],
   retention:   [CC_CONFIG.erlaubeSchreibaktionen ? "RecordsManagement.ReadWrite.All" : "RecordsManagement.Read.All"],
   ediscovery:  [CC_CONFIG.erlaubeSchreibaktionen ? "eDiscovery.ReadWrite.All" : "eDiscovery.Read.All"],
   privacy:     [CC_CONFIG.erlaubeSchreibaktionen ? "SubjectRightsRequest.ReadWrite.All" : "SubjectRightsRequest.Read.All"],

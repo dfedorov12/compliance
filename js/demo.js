@@ -176,6 +176,7 @@
       { id: "p2", name: "Löschersuchen ehem. Mitarbeiter", typ: "delete", status: "closed", betroffen: "M. Ehemalig", email: "", erstellt: new Date(Date.now() - 60 * 86400000).toISOString(), faellig: tage(-25) + "T12:00:00Z", abgeschlossen: new Date(Date.now() - 30 * 86400000).toISOString(), regelung: "DSGVO" }
     ],
     auditQueryStart: async () => ({ id: "q1" }),
+    auditQueryListe: async () => ({ value: [] }),
     auditQueryStatus: async () => ({ status: "succeeded" }),
     auditQueryRecords: async () => zufall(25, i => ({
       zeit: new Date(Date.now() - i * 5400000).toISOString(),
@@ -205,6 +206,7 @@
       { name: "Intune-Administrator", beschreibung: "", mitglieder: ["it@dihag.com"] }
     ],
     benutzerStatistik: async () => ({ gesamt: 348, gaeste: 27, deaktiviert: 41 }),
+    lizenzen: async () => ({ skus: ["SPE_E3"], informationProtection: ["RMS_S_ENTERPRISE", "MIP_S_CLP1"], priva: [] }),
     geraeteKonformitaet: async () => ({
       gesamt: 212, konform: 197, nichtKonform: 15,
       geraete: zufall(15, i => ({ name: "DIHAG-NB-" + (100 + i), status: "noncompliant",

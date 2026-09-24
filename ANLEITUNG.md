@@ -49,7 +49,8 @@ Angeforderte Berechtigungen (alle **delegiert**, keine Anwendungsberechtigungen)
 | `SecurityIncident.Read.All` | Vorfälle aus Defender XDR |
 | `AuditLogsQuery.Read.All` | Suche im einheitlichen Überwachungsprotokoll |
 | `AuditLog.Read.All` | Entra-Verzeichnisprotokoll |
-| `InformationProtectionPolicy.Read` | Vertraulichkeitsbezeichnungen |
+| `SensitivityLabels.Read.All`, `SensitivityLabel.Read` | Vertraulichkeitsbezeichnungen (neue Schnittstelle `dataSecurityAndGovernance`) |
+| `InformationProtectionPolicy.Read` | Vertraulichkeitsbezeichnungen, alte Schnittstelle als Rückfallebene |
 | `RecordsManagement.ReadWrite.All` | Aufbewahrungsbezeichnungen lesen und anlegen |
 | `eDiscovery.ReadWrite.All` | eDiscovery-Fälle lesen und anlegen |
 | `SubjectRightsRequest.ReadWrite.All` | Betroffenenanfragen |

@@ -231,7 +231,7 @@ async function renderEinstellungen(el) {
       { label: "Vorfälle (SecurityIncident.Read.All)", test: () => Purview.incidents({ top: 1 }) },
       { label: "Überwachungsprotokoll (AuditLogsQuery.Read.All)", test: () => Purview.auditQueryListe() },
       { label: "Entra-Protokoll (AuditLog.Read.All)", test: () => Purview.directoryAudits({ top: 1 }) },
-      { label: "Vertraulichkeitsbezeichnungen (InformationProtectionPolicy.Read)", test: () => Purview.sensitivityLabels() },
+      { label: "Vertraulichkeitsbezeichnungen (SensitivityLabel*.Read)", test: () => Purview.sensitivityLabels() },
       { label: "Aufbewahrung (RecordsManagement.*)", test: () => Purview.retentionLabels() },
       { label: "eDiscovery (eDiscovery.*)", test: () => Purview.ediscoveryCases() },
       { label: "Betroffenenanfragen (SubjectRightsRequest.*)", test: () => Purview.subjectRightsRequests() },
@@ -242,6 +242,22 @@ async function renderEinstellungen(el) {
     protokoll.innerHTML = `<table class="report-table"><thead><tr><th>Bereich</th><th>Ergebnis</th></tr></thead>
       <tbody id="rechteBody"></tbody></table>`;
     const body = document.getElementById("rechteBody");
+
+    // Erste Zeile: mit welchem Konto und welchen Lizenzplänen wird geprüft?
+    const konto = document.createElement("tr");
+    konto.innerHTML = `<td>Angemeldetes Konto</td><td class="muted">wird ermittelt …</td>`;
+    body.appendChild(konto);
+    try {
+      const l = await Purview.lizenzen();
+      const liste = a => a.length ? esc(a.join(", ")) : "<em>keine</em>";
+      konto.lastElementChild.innerHTML = `<strong>${esc(Store.benutzer.email)}</strong><br>
+        <span class="muted">Lizenzen: ${liste(l.skus)}<br>
+        Information Protection: ${liste(l.informationProtection)} · Priva: ${liste(l.priva)}</span>`;
+    } catch (e) {
+      konto.lastElementChild.innerHTML = `<strong>${esc(Store.benutzer.email)}</strong>
+        <span class="muted">(Lizenzen nicht lesbar: ${esc(e.message)})</span>`;
+    }
+
     for (const p of pruefungen) {
       const tr = document.createElement("tr");
       tr.innerHTML = `<td>${esc(p.label)}</td><td class="muted">wird geprüft …</td>`;
@@ -252,13 +268,16 @@ async function renderEinstellungen(el) {
       } catch (e) {
         const grund = e.name === "BerechtigungFehlt"
           ? "Zustimmung fehlt: " + e.scopes.join(", ")
-          : (e.status ? e.status + " " : "") + (e.message || "").slice(0, 300);
+          : mitStatus(e).slice(0, 300);
         // Bei mehreren probierten Endpunkten jede Antwort einzeln zeigen.
         const details = e.versuche && e.versuche.length > 1
           ? `<details class="versuche"><summary>${e.versuche.length} Endpunkte probiert</summary><ul>${
               e.versuche.map(v => `<li>${esc(v.slice(0, 300))}</li>`).join("")}</ul></details>`
           : "";
-        tr.lastElementChild.innerHTML = `<span class="status st-red">nicht verfügbar</span> <span class="muted">${esc(grund)}</span>${details}`;
+        const status = e.nichtLizenziert
+          ? `<span class="status st-gray">nicht lizenziert</span>`
+          : `<span class="status st-red">nicht verfügbar</span>`;
+        tr.lastElementChild.innerHTML = `${status} <span class="muted">${esc(grund)}</span>${details}`;
       }
     }
   };
