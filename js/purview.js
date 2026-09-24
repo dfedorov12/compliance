@@ -442,14 +442,6 @@ const CC_SIGNALE = {
       const a = await Store.load("avv");
       return { text: `${a.length} Dienstleister erfasst, davon ${a.filter(x => x.Status === "Aktiv").length} aktiv`, daten: a };
     } },
-  vorfaelle: { label: CC_SIGNAL_LABELS.vorfaelle, laden: async () => {
-      const v = await Store.load("vorfaelle");
-      return { text: `${v.filter(x => x.Status !== "Abgeschlossen").length} offene Vorfälle (von ${v.length} insgesamt)`, daten: v };
-    } },
-  risiken: { label: CC_SIGNAL_LABELS.risiken, laden: async () => {
-      const r = await Store.load("risiken");
-      return { text: `${r.length} Risiken bewertet, ${r.filter(x => Number(x.Bewertung) >= 15).length} mit hohem Risikowert`, daten: r };
-    } },
   rms: { label: CC_SIGNAL_LABELS.rms, laden: async () => {
       return { text: "Richtlinien und Schulungsnachweise werden im Richtlinienmanagementsystem geführt.",
                link: (Store.konfig && Store.konfig.rmsUrl) || "" };

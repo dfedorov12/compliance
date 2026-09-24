@@ -5,9 +5,7 @@
 const Ansichten = {
   dashboard:   { titel: "Dashboard", render: renderDashboard },
   purview:     { titel: "Microsoft 365", render: renderPurview },
-  controls:    { titel: "Controls", render: renderControls },
-  aufgaben:    { titel: "Aufgaben", render: renderAufgaben },
-  risiken:     { titel: "Risiken", render: renderRisiken },
+  nachweise:   { titel: "M365-Nachweise", render: renderNachweise },
   datenschutz: { titel: "Datenschutz", render: renderDatenschutz },
   berichte:    { titel: "Berichte", render: renderBerichte },
   einstellungen: { titel: "Einstellungen", render: renderEinstellungen, nurAdmin: true },
@@ -32,6 +30,7 @@ function zeigeAnsicht(key) {
   const params = new URLSearchParams(location.search);
   params.set("ansicht", key);
   params.delete("eintrag");
+  params.delete("control");
   history.replaceState(null, "", "?" + params.toString());
 }
 
@@ -40,7 +39,7 @@ async function start() {
   // Direktlinks (?ansicht=…&eintrag=…) überleben den Umweg über die Microsoft-
   // Anmeldung nicht, weil die Redirect-URI keine Parameter trägt. Deshalb vorher merken.
   try {
-    if (/[?&](ansicht|eintrag)=/.test(location.search)) sessionStorage.setItem("cc_deeplink", location.search);
+    if (/[?&](ansicht|eintrag|control)=/.test(location.search)) sessionStorage.setItem("cc_deeplink", location.search);
   } catch (e) { /* ohne Sitzungsspeicher geht nur der Link ohne Anmeldung */ }
   try {
     const konto = await ensureLogin();
@@ -65,6 +64,7 @@ async function start() {
     document.getElementById("loadingScreen").hidden = true;
 
     document.getElementById("navEinstellungen").hidden = !Store.rolle.admin;
+    document.getElementById("navRms").href = (Store.konfig && Store.konfig.rmsUrl) || CC_RMS.url;
     const rollen = [];
     if (Store.rolle.admin) rollen.push("Administrator");
     if (Store.rolle.dsb) rollen.push("DSB");
@@ -84,6 +84,10 @@ async function start() {
     const eintrag = params.get("eintrag");
     let ansicht = params.get("ansicht");
     let ziel = null;
+    if (params.get("control")) {
+      ansicht = "nachweise";
+      ziel = { entity: "nachweise", id: params.get("control") };
+    }
     if (eintrag && eintrag.includes(":")) {
       const [entity, id] = eintrag.split(":");
       const ort = CC_ORT[entity];
@@ -125,14 +129,22 @@ async function renderEinstellungen(el) {
           <input type="email" id="sMailSender" value="${esc(k.mailSender || "")}"></label>
         <label>Organisation
           <input type="text" id="sOrg" value="${esc(k.organisation || "")}"></label>
-        <label class="span2">Richtlinienmanagementsystem (URL)
-          <input type="url" id="sRms" value="${esc(k.rmsUrl || "")}"></label>
       </div>
+
+      <h3>Anbindung an das RMS</h3>
+      <p class="hint">Controls und SoA, Risiken, Vorfälle und Maßnahmen führt das Richtlinienmanagementsystem.
+        Das Cockpit liest diese Daten mit Ihren Rechten und verlinkt zum Bearbeiten dorthin.</p>
+      <div class="settings-grid">
+        <label class="span2">Adresse des RMS
+          <input type="url" id="sRms" value="${esc(k.rmsUrl || CC_RMS.url)}"></label>
+      </div>
+      <div class="btn-reihe">
+        <button class="btn-secondary" id="btnRmsTest">Anbindung prüfen</button>
+      </div>
+      <div id="rmsProtokoll"></div>
 
       <h3>Prüfzyklen &amp; Erinnerungen</h3>
       <div class="settings-grid">
-        <label>Prüfzyklus Controls (Monate)
-          <input type="number" id="sZyklus" min="1" max="60" value="${esc(k.pruefzyklusMonate || 12)}"></label>
         <label>Erinnerung vor Fälligkeit (Tage)
           <input type="number" id="sVorher" min="1" max="90" value="${esc(k.erinnerungTageVorher || 14)}"></label>
         <label>Eskalation nach Überfälligkeit (Tage)
@@ -144,13 +156,6 @@ async function renderEinstellungen(el) {
           </select></label>
       </div>
 
-      <h3>Aktive Normenkataloge</h3>
-      <div class="checkbox-reihe">
-        ${Object.keys(CC_FRAMEWORKS).map(key => `<label class="checkline">
-          <input type="checkbox" data-fw="${key}"${(k.frameworks || []).includes(key) ? " checked" : ""}>
-          ${esc(CC_FRAMEWORKS[key].label)} <span class="muted">(${CC_FRAMEWORKS[key].controls.length})</span></label>`).join("")}
-      </div>
-
       <button class="btn-primary" id="btnSaveSettings">Einstellungen speichern</button>
     </div>
 
@@ -160,7 +165,6 @@ async function renderEinstellungen(el) {
         <code>${esc(CC_CONFIG.sitePath)}</code> die Berechtigung „Vollzugriff" bzw. „Listen verwalten".</p>
       <div class="btn-reihe">
         <button class="btn-primary" id="btnListen">Listen prüfen / anlegen</button>
-        <button class="btn-secondary" id="btnImport">Normenkatalog importieren</button>
         <button class="btn-secondary" id="btnRechte">Berechtigungen prüfen</button>
       </div>
       <div id="setupProtokoll"></div>
@@ -181,7 +185,6 @@ async function renderEinstellungen(el) {
 
   document.getElementById("btnSaveSettings").onclick = async () => {
     const liste = id => teileListe(document.getElementById(id).value);
-    const frameworks = [...el.querySelectorAll("[data-fw]")].filter(c => c.checked).map(c => c.dataset.fw);
     try {
       await Store.saveKonfig({
         adminEmails: liste("sAdmins"),
@@ -191,12 +194,11 @@ async function renderEinstellungen(el) {
         mailSender: document.getElementById("sMailSender").value.trim(),
         organisation: document.getElementById("sOrg").value.trim(),
         rmsUrl: document.getElementById("sRms").value.trim(),
-        pruefzyklusMonate: Number(document.getElementById("sZyklus").value) || 12,
         erinnerungTageVorher: Number(document.getElementById("sVorher").value) || 14,
         eskalationTageNach: Number(document.getElementById("sEskal").value) || 7,
-        erinnerungenAktiv: document.getElementById("sErinnerungen").value === "ja",
-        frameworks
+        erinnerungenAktiv: document.getElementById("sErinnerungen").value === "ja"
       });
+      Rms.invalidate();
       Store.bestimmeRolle();
       toast("Einstellungen gespeichert.");
     } catch (e) {
@@ -229,18 +231,28 @@ async function renderEinstellungen(el) {
     }
   };
 
-  document.getElementById("btnImport").onclick = async () => {
-    const frameworks = [...el.querySelectorAll("[data-fw]")].filter(c => c.checked).map(c => c.dataset.fw);
-    if (!frameworks.length) { toast("Bitte mindestens einen Normenkatalog auswählen."); return; }
-    const anzahl = frameworks.reduce((s, f) => s + CC_FRAMEWORKS[f].controls.length, 0);
-    if (!confirm(`${anzahl} Controls aus ${frameworks.length} Katalog(en) importieren?\nBereits vorhandene Control-IDs werden übersprungen.`)) return;
-    protokoll.innerHTML = ladeBox("Import läuft …");
-    try {
-      const neu = await Store.importFrameworks(frameworks, t => { protokoll.innerHTML = ladeBox(t); });
-      protokoll.innerHTML = hinweisBox(`<strong>${neu}</strong> Controls importiert.`, "info");
-      toast("Import abgeschlossen.");
-    } catch (e) {
-      protokoll.innerHTML = fehlerBox(e, "Import");
+  // Liest je eine Stichprobe aus dem RMS: SoA, Risiken, Maßnahmen.
+  document.getElementById("btnRmsTest").onclick = async () => {
+    const box = document.getElementById("rmsProtokoll");
+    Rms.invalidate();
+    const tests = [
+      { label: "SoA (soa-config.json auf " + CC_RMS.appSite + ")", test: async () => {
+          const s = await Rms.soa();
+          if (!s) return "noch keine SoA gespeichert";
+          const k = Rms.soaKennzahlen(s);
+          return `${k.anwendbar + k.ausgeschlossen} von 93 entschieden, ${k.umgesetzt} umgesetzt`;
+        } },
+      { label: "Risiken (Liste auf " + CC_RMS.ismsSite + ")", test: async () => `${(await Rms.risiken()).length} Risiken` },
+      { label: "Wirksamkeit (Liste auf " + CC_RMS.ismsSite + ")", test: async () => `${(await Rms.wirksamkeit()).length} Einträge` }
+    ];
+    box.innerHTML = `<table class="report-table"><tbody id="rmsTestBody"></tbody></table>`;
+    const body = document.getElementById("rmsTestBody");
+    for (const x of tests) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${esc(x.label)}</td><td class="muted">wird gelesen …</td>`;
+      body.appendChild(tr);
+      try { tr.lastElementChild.innerHTML = `<span class="status st-green">lesbar</span> <span class="muted">${esc(await x.test())}</span>`; }
+      catch (e) { tr.lastElementChild.innerHTML = `<span class="status st-red">nicht lesbar</span> <span class="muted">${esc(mitStatus(e))}</span>`; }
     }
   };
 
@@ -260,7 +272,8 @@ async function renderEinstellungen(el) {
       { label: "Betroffenenanfragen (SubjectRightsRequest.*)", test: () => Purview.subjectRightsRequests() },
       { label: "Bedingter Zugriff (Policy.Read.All)", test: () => Purview.conditionalAccessPolicies() },
       { label: "Verzeichnisrollen (RoleManagement.Read.Directory)", test: () => Purview.privilegierteRollen() },
-      { label: "Geräte (DeviceManagement*.Read.All)", test: () => Purview.geraeteRichtlinien() }
+      { label: "Geräte (DeviceManagement*.Read.All)", test: () => Purview.geraeteRichtlinien() },
+      { label: "RMS: SoA und Risiken lesen", test: async () => { await Rms.soa(); await Rms.risiken(); } }
     ];
     protokoll.innerHTML = `<table class="report-table"><thead><tr><th>Bereich</th><th>Ergebnis</th></tr></thead>
       <tbody id="rechteBody"></tbody></table>`;
@@ -311,7 +324,8 @@ async function renderEinstellungen(el) {
 // ===========================================================================
 
 document.addEventListener("DOMContentLoaded", () => {
-  document.querySelectorAll(".nav-btn").forEach(b => { b.onclick = () => zeigeAnsicht(b.dataset.view); });
+  // Nur echte Ansichten umschalten; der Link ins RMS öffnet einfach einen neuen Tab.
+  document.querySelectorAll(".nav-btn[data-view]").forEach(b => { b.onclick = () => zeigeAnsicht(b.dataset.view); });
   document.getElementById("btnLogout").onclick = logout;
   document.getElementById("btnModalClose").onclick = () => Dialog.schliesse();
   document.getElementById("detailModal").addEventListener("click", e => {

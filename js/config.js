@@ -57,14 +57,14 @@ const CC_SCOPES = {
 };
 
 // Namen der SharePoint-Listen (zentral, damit Provisionierung und App identisch sind).
+// Controls/SoA, Risiken, Vorfälle und Maßnahmen führt das RMS (siehe rms.js).
+// Das Cockpit hält nur, was es im RMS nicht gibt: Datenschutz-Register und die
+// gesicherten M365-Nachweise je Control.
 const CC_LISTS = {
-  controls:   "Compliance_Controls",
-  aufgaben:   "Compliance_Aufgaben",
-  risiken:    "Compliance_Risiken",
   vvt:        "Compliance_VVT",
   tom:        "Compliance_TOM",
   avv:        "Compliance_AVV",
-  vorfaelle:  "Compliance_Vorfaelle",
   anfragen:   "Compliance_Anfragen",
+  nachweise:  "Compliance_M365Nachweise",
   konfig:     "Compliance_Konfiguration"
 };

@@ -124,14 +124,6 @@ async function zeigeAnfrage(a, neuladen) {
       toast("Bitte Ergebnis wählen und speichern.");
     } });
   }
-  aktionen.push({ label: "Aufgabe anlegen", klasse: "btn-secondary", onClick: () => {
-    Dialog.schliesse();
-    oeffneEditor("aufgaben", {
-      Title: `${a.Title}: `, ControlId: "D.2.1", Status: "Offen", Prioritaet: "Hoch",
-      Verantwortlich: a.Verantwortlich || "", Quelle: "Betroffenenanfrage " + a.Title,
-      Faellig: a.Frist || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
-    }, () => toast("Aufgabe angelegt."));
-  } });
 
   Dialog.zeige({
     titel: `${a.Title} · ${a.Art}`,

@@ -374,7 +374,7 @@ async function renderEntity(container, entity, opts = {}) {
   }
 
   const neuLaden = () => renderEntity(container, entity, { ...opts, force: true });
-  const badgeFelder = ["Status", "Prioritaet", "Risiko", "MeldungBehoerde", "Garantien", "Identitaet", "Ergebnis"];
+  const badgeFelder = ["Status", "Garantien", "Identitaet", "Ergebnis", "TOMGeprueft"];
 
   const spalten = (opts.spalten || def.tabelle).map(name => {
     const feld = def.felder.find(f => f.name === name) || { name, label: name, type: "text" };
@@ -394,10 +394,6 @@ async function renderEntity(container, entity, opts = {}) {
           return `<span class="${spaet ? "ueberfaellig" : rest !== null && rest <= 7 ? "warnung" : ""}">${fmtDatum(v)}</span>${zusatz}`;
         }
         if (badgeFelder.includes(name)) return statusBadge(v);
-        if (name === "Bewertung") {
-          const st = risikoStufe(v);
-          return `<span class="status ${st.klasse}">${esc(v || "–")} · ${st.label}</span>`;
-        }
         return esc(v);
       },
       csv: row => row[name]

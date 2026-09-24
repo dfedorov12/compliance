@@ -13,44 +13,7 @@
   const neueId = () => String(++_id);
 
   // --- Beispieldaten -------------------------------------------------------
-  const controls = CC_FRAMEWORKS.ISO27001.controls.map((c, i) => ({
-    id: neueId(), Title: c.id, Framework: "ISO27001",
-    Kategorie: c.id.split(".").slice(0, 2).join("."),
-    Bezeichnung: c.titel, Anforderung: c.anforderung || "",
-    Status: i % 7 === 0 ? "Offen" : i % 5 === 0 ? "In Umsetzung" : i % 11 === 0 ? "Nicht anwendbar" : "Umgesetzt",
-    Reifegrad: CC_REIFEGRADE[Math.min(5, (i % 6))].label,
-    Verantwortlich: i % 3 === 0 ? "fedorov@dihag.com" : "it@dihag.com",
-    Umsetzung: "", NachweisText: "", Begruendung: i % 11 === 0 ? "Kein eigener Rechenzentrumsbetrieb." : "",
-    LetztePruefung: tage(-200 + (i % 60)), NaechstePruefung: tage(-10 + (i % 90)),
-    M365Signal: c.m365 || "", RisikoIds: ""
-  })).concat(CC_FRAMEWORKS.DSGVO.controls.map((c, i) => ({
-    id: neueId(), Title: c.id, Framework: "DSGVO",
-    Kategorie: c.id.split(".").slice(0, 2).join("."),
-    Bezeichnung: c.titel, Anforderung: c.anforderung || "",
-    Status: i % 4 === 0 ? "In Umsetzung" : "Umgesetzt",
-    Reifegrad: CC_REIFEGRADE[3].label, Verantwortlich: "datenschutz@dihag.com",
-    Umsetzung: "", NachweisText: "", Begruendung: "",
-    LetztePruefung: tage(-120), NaechstePruefung: tage(20 + i),
-    M365Signal: c.m365 || "", RisikoIds: ""
-  })));
-
   const daten = {
-    [CC_LISTS.controls]: controls,
-    [CC_LISTS.aufgaben]: [
-      { id: neueId(), Title: "MFA für alle Dienstkonten erzwingen", Beschreibung: "Konten ohne MFA identifizieren und Richtlinie ausrollen.", ControlId: "A.8.5", Verantwortlich: "fedorov@dihag.com", Faellig: tage(-6), Prioritaet: "Hoch", Status: "In Arbeit", Erledigt: "", Quelle: "Secure Score", Erinnert: "" },
-      { id: neueId(), Title: "DLP-Richtlinie für Konstruktionsdaten erweitern", Beschreibung: "Prototypendaten in die bestehende Richtlinie aufnehmen.", ControlId: "A.8.12", Verantwortlich: "it@dihag.com", Faellig: tage(9), Prioritaet: "Mittel", Status: "Offen", Erledigt: "", Quelle: "TISAX-Audit", Erinnert: "" },
-      { id: neueId(), Title: "Löschkonzept mit Aufbewahrungsbezeichnungen abgleichen", Beschreibung: "", ControlId: "D.1.6", Verantwortlich: "datenschutz@dihag.com", Faellig: tage(21), Prioritaet: "Mittel", Status: "Offen", Erledigt: "", Quelle: "Datenschutzaudit", Erinnert: "" },
-      { id: neueId(), Title: "Notfallübung Wiederanlauf ERP", Beschreibung: "", ControlId: "A.5.30", Verantwortlich: "it@dihag.com", Faellig: tage(-25), Prioritaet: "Hoch", Status: "Offen", Erledigt: "", Quelle: "ISO-Audit 2026", Erinnert: "" },
-      { id: neueId(), Title: "Awareness-Kampagne Phishing Q3", Beschreibung: "", ControlId: "A.6.3", Verantwortlich: "fedorov@dihag.com", Faellig: tage(40), Prioritaet: "Niedrig", Status: "Offen", Erledigt: "", Quelle: "Schulungsplan", Erinnert: "" },
-      { id: neueId(), Title: "Berechtigungsreview Finanzbuchhaltung", Beschreibung: "", ControlId: "A.5.18", Verantwortlich: "it@dihag.com", Faellig: tage(-40), Prioritaet: "Hoch", Status: "Erledigt", Erledigt: tage(-38), Quelle: "Quartalsreview", Erinnert: "" }
-    ],
-    [CC_LISTS.risiken]: [
-      { id: neueId(), Title: "Ransomware-Angriff auf Produktionsnetz", Beschreibung: "Verschlüsselung der Fertigungssteuerung führt zu Produktionsstillstand.", Kategorie: "IT-Sicherheit", Eintritt: 3, Auswirkung: 5, Bewertung: 15, Strategie: "Vermindern", Massnahmen: "Segmentierung, Backup-Tests, EDR auf allen Servern.", RestrisikoE: 2, RestrisikoA: 5, ControlIds: "A.8.7, A.8.13, A.8.22", Verantwortlich: "fedorov@dihag.com", Status: "In Behandlung", Ueberpruefung: tage(45) },
-      { id: neueId(), Title: "Abfluss von Konstruktionsdaten über Cloud-Speicher", Beschreibung: "Mitarbeitende laden CAD-Daten in private Dienste.", Kategorie: "Datenschutz", Eintritt: 3, Auswirkung: 4, Bewertung: 12, Strategie: "Vermindern", Massnahmen: "DLP-Richtlinie, Vertraulichkeitsbezeichnungen, Webfilter.", RestrisikoE: 2, RestrisikoA: 3, ControlIds: "A.8.12, A.5.12", Verantwortlich: "it@dihag.com", Status: "In Behandlung", Ueberpruefung: tage(20) },
-      { id: neueId(), Title: "Ausfall eines Auftragsverarbeiters (Lohnabrechnung)", Beschreibung: "", Kategorie: "Lieferkette", Eintritt: 2, Auswirkung: 4, Bewertung: 8, Strategie: "Übertragen", Massnahmen: "Vertragliche SLA, Ausweichprozess.", RestrisikoE: 2, RestrisikoA: 3, ControlIds: "A.5.19, N.1.d", Verantwortlich: "hr@dihag.com", Status: "Offen", Ueberpruefung: tage(90) },
-      { id: neueId(), Title: "Fehlende Meldung einer Datenpanne binnen 72 Stunden", Beschreibung: "", Kategorie: "Recht & Compliance", Eintritt: 2, Auswirkung: 5, Bewertung: 10, Strategie: "Vermindern", Massnahmen: "Meldeprozess im Cockpit, Fristüberwachung per Cron.", RestrisikoE: 1, RestrisikoA: 5, ControlIds: "D.3.2", Verantwortlich: "datenschutz@dihag.com", Status: "In Behandlung", Ueberpruefung: tage(60) },
-      { id: neueId(), Title: "Veraltete Firmware an Fertigungsanlagen", Beschreibung: "", Kategorie: "Betrieb", Eintritt: 4, Auswirkung: 3, Bewertung: 12, Strategie: "Vermindern", Massnahmen: "Patchfenster mit Instandhaltung abstimmen.", RestrisikoE: 3, RestrisikoA: 3, ControlIds: "A.8.8", Verantwortlich: "it@dihag.com", Status: "Offen", Ueberpruefung: tage(30) }
-    ],
     [CC_LISTS.vvt]: [
       { id: neueId(), Title: "Personalverwaltung", Verantwortlicher: "DIHAG Foundry Group", Fachbereich: "Personal", Zweck: "Begründung, Durchführung und Beendigung des Beschäftigungsverhältnisses.", Rechtsgrundlage: "§ 26 BDSG – Beschäftigtenverhältnis", Betroffenengruppen: "Beschäftigte, Bewerber", Datenkategorien: "Stammdaten, Vertragsdaten, Abrechnungsdaten", BesondereKat: "Ja", Empfaenger: "Lohnbüro, Sozialversicherungsträger", Drittland: "", Garantien: "", Loeschfrist: "10 Jahre nach Austritt", TOMRef: "TOM-Katalog", Systeme: "SAP HCM, Microsoft 365", DSFA: "Nicht erforderlich", Status: "Freigegeben", DSBFreigabe: "datenschutz@dihag.com", LetztePruefung: tage(-180), NaechstePruefung: tage(10) },
       { id: neueId(), Title: "Videoüberwachung Werksgelände", Verantwortlicher: "DIHAG Foundry Group", Fachbereich: "Werkschutz", Zweck: "Schutz des Eigentums und Aufklärung von Straftaten.", Rechtsgrundlage: "Art. 6 Abs. 1 lit. f – berechtigtes Interesse", Betroffenengruppen: "Beschäftigte, Besucher, Lieferanten", Datenkategorien: "Bilddaten", BesondereKat: "Nein", Empfaenger: "Werkschutz, ggf. Strafverfolgungsbehörden", Drittland: "", Garantien: "", Loeschfrist: "72 Stunden", TOMRef: "", Systeme: "Videoanlage", DSFA: "Durchgeführt", Status: "Freigegeben", DSBFreigabe: "datenschutz@dihag.com", LetztePruefung: tage(-90), NaechstePruefung: tage(-5) },
@@ -66,10 +29,6 @@
       { id: neueId(), Title: "Microsoft Ireland Operations Ltd.", Leistung: "Microsoft 365, Azure", Kategorie: "Auftragsverarbeiter (Art. 28)", Vertragsdatum: tage(-700), Ablauf: "", Datenkategorien: "Kommunikations- und Nutzungsdaten", Drittland: "USA (Unterauftragnehmer)", Garantien: "Standardvertragsklauseln", TOMGeprueft: "Ja", LoeschungNachEnde: "Ja", Systeme: "Microsoft 365", Kontakt: "Data Protection Officer", Verantwortlich: "fedorov@dihag.com", Status: "Aktiv", NaechstePruefung: tage(120) },
       { id: neueId(), Title: "Lohnbüro Süd GmbH", Leistung: "Entgeltabrechnung", Kategorie: "Auftragsverarbeiter (Art. 28)", Vertragsdatum: tage(-1100), Ablauf: tage(45), Datenkategorien: "Abrechnungs- und Sozialversicherungsdaten", Drittland: "", Garantien: "Nicht erforderlich", TOMGeprueft: "Nein", LoeschungNachEnde: "Ja", Systeme: "Lohnportal", Kontakt: "info@lohnbuero-sued.example", Verantwortlich: "hr@dihag.com", Status: "Aktiv", NaechstePruefung: tage(8) },
       { id: neueId(), Title: "Aktenvernichtung Rhein GmbH", Leistung: "Datenträgervernichtung", Kategorie: "Auftragsverarbeiter (Art. 28)", Vertragsdatum: tage(-400), Ablauf: "", Datenkategorien: "sämtliche Papierunterlagen", Drittland: "", Garantien: "Nicht erforderlich", TOMGeprueft: "Ja", LoeschungNachEnde: "Ja", Systeme: "–", Kontakt: "", Verantwortlich: "werkschutz@dihag.com", Status: "Aktiv", NaechstePruefung: tage(200) }
-    ],
-    [CC_LISTS.vorfaelle]: [
-      { id: neueId(), Title: "Fehlversand einer Gehaltsliste per E-Mail", Art: "Datenpanne (DSGVO Art. 33)", Entdeckt: tage(-1), EntdecktUhr: "09:30", Beschreibung: "Eine Gehaltsübersicht wurde an einen falschen internen Verteiler gesendet.", Ursache: "Autovervollständigung im Mailclient.", Betroffene: "Beschäftigte Verwaltung", Anzahl: 24, Datenkategorien: "Entgeltdaten", Risiko: "Mittel", MeldungBehoerde: "Erforderlich", MeldungAm: "", Benachrichtigung: "Erforderlich", Massnahmen: "Nachricht zurückgerufen, Empfänger zur Löschung aufgefordert.", Verantwortlich: "datenschutz@dihag.com", Status: "In Bearbeitung", Abgeschlossen: "", Erinnert: "" },
-      { id: neueId(), Title: "Phishing-Welle mit Zugangsdatenabfrage", Art: "Sicherheitsvorfall", Entdeckt: tage(-20), EntdecktUhr: "07:10", Beschreibung: "Gefälschte Anmeldeseite an 40 Beschäftigte versendet.", Ursache: "Externe Kampagne.", Betroffene: "Beschäftigte", Anzahl: 40, Datenkategorien: "Zugangsdaten", Risiko: "Hoch", MeldungBehoerde: "Nicht erforderlich", MeldungAm: "", Benachrichtigung: "Nicht erforderlich", Massnahmen: "Mails entfernt, Kennwörter zurückgesetzt, Awareness-Hinweis versendet.", Verantwortlich: "fedorov@dihag.com", Status: "Abgeschlossen", Abgeschlossen: tage(-14), Erinnert: "" }
     ],
     [CC_LISTS.anfragen]: [
       berechneAnfrage({ id: neueId(), Title: "BA-2026-0904-0915", Art: "Auskunft (Art. 15)", Eingang: tage(-20), Kanal: "E-Mail",
@@ -94,12 +53,20 @@
         Verlaengert: "Nein", Systeme: "CRM", EdiscoveryFall: "", Ergebnis: "Vollständig erfüllt", Begruendung: "",
         Beantwortet: tage(-98), Verantwortlich: "datenschutz@dihag.com", Status: "Abgeschlossen", Erinnert: "" })
     ],
+    [CC_LISTS.nachweise]: [
+      { id: neueId(), Title: "A.8.5", Bezeichnung: "Sichere Authentifizierung", Signal: CC_SIGNAL_LABELS.ca,
+        Wert: "2 aktive Richtlinien für bedingten Zugriff (von 4)", Stand: tage(-40), Zeit: tage(-40) + "T09:00:00Z", ErfasstVon: "fedorov@dihag.com" },
+      { id: neueId(), Title: "A.8.12", Bezeichnung: "Verhinderung von Datenlecks", Signal: CC_SIGNAL_LABELS.dlp,
+        Wert: "5 DLP-Warnungen in Microsoft Purview", Stand: tage(-12), Zeit: tage(-12) + "T09:00:00Z", ErfasstVon: "fedorov@dihag.com" },
+      { id: neueId(), Title: "A.5.12", Bezeichnung: "Klassifizierung von Informationen", Signal: CC_SIGNAL_LABELS.labels,
+        Wert: "5 Vertraulichkeitsbezeichnungen veröffentlicht: Öffentlich, Intern, Vertraulich, Vertraulich \\ Konstruktion, Streng vertraulich",
+        Stand: tage(-120), Zeit: tage(-120) + "T09:00:00Z", ErfasstVon: "fedorov@dihag.com" }
+    ],
     [CC_LISTS.konfig]: [
       { id: neueId(), Title: "Allgemein", WertJson: JSON.stringify({
           adminEmails: ["fedorov@dihag.com"], auditorEmails: [],
           dsbEmail: "datenschutz@dihag.com", cisoEmail: "fedorov@dihag.com",
           mailSender: "administrator@dihag.com",
-          frameworks: ["ISO27001", "DSGVO"], pruefzyklusMonate: 12,
           erinnerungTageVorher: 14, eskalationTageNach: 7, erinnerungenAktiv: true,
           rmsUrl: "https://rms.dihag.de/",
           organisation: "DIHAG Foundry Group (Demo)"
@@ -139,6 +106,51 @@
     { name: "Personalabteilung", mail: "hr@dihag.com" },
     { name: "Werkschutz", mail: "werkschutz@dihag.com" }
   ];
+
+  // --- RMS nachbilden (SoA, Risiken, Wirksamkeit) --------------------------
+  const soaDemo = { controls: {}, meta: {} };
+  CC_ANNEX_A.forEach((c, i) => {
+    if (i % 9 === 4) return;                                   // noch nicht entschieden
+    if (i % 17 === 3) { soaDemo.controls[c.id] = { anwendbar: false, begruendung: i % 2 ? "Keine eigene Softwareentwicklung." : "", status: "" }; return; }
+    soaDemo.controls[c.id] = { anwendbar: true, begruendung: "", status: i % 5 === 0 ? "teilweise umgesetzt" : i % 7 === 0 ? "geplant" : "umgesetzt" };
+  });
+  const risikenDemo = [
+    { id: "r1", titel: "Ransomware-Angriff auf Produktionsnetz", beschreibung: "Verschlüsselung der Fertigungssteuerung.", kategorie: "Technik / IT",
+      eigner: "fedorov@dihag.com", wert: 15, status: "in Behandlung", naechsteReview: tage(12),
+      massnahmen: [{ titel: "Segmentierung OT-Netz", verantwortlich: "it@dihag.com", frist: tage(-3), status: "in Umsetzung" },
+                   { titel: "Wiederherstellungstest Backup", verantwortlich: "it@dihag.com", frist: tage(20), status: "offen" }],
+      controls: ["A.8.7", "A.8.13", "A.8.22"] },
+    { id: "r2", titel: "Abfluss von Konstruktionsdaten über Cloud-Speicher", beschreibung: "CAD-Daten in privaten Diensten.", kategorie: "Technik / IT",
+      eigner: "it@dihag.com", wert: 12, status: "in Behandlung", naechsteReview: tage(40),
+      massnahmen: [{ titel: "DLP-Regel für CAD-Dateien", verantwortlich: "fedorov@dihag.com", frist: tage(9), status: "offen" }],
+      controls: ["A.8.12", "A.5.12"] },
+    { id: "r3", titel: "Ausfall Lohnabrechnungsdienstleister", beschreibung: "", kategorie: "Lieferanten / Dienstleister",
+      eigner: "hr@dihag.com", wert: 8, status: "offen", naechsteReview: tage(-5), massnahmen: [], controls: ["A.5.19"] },
+    { id: "r4", titel: "Fehlende MFA bei Dienstkonten", beschreibung: "", kategorie: "Technik / IT",
+      eigner: "fedorov@dihag.com", wert: 16, status: "offen", naechsteReview: tage(25),
+      massnahmen: [{ titel: "Dienstkonten auf verwaltete Identitäten umstellen", verantwortlich: "fedorov@dihag.com", frist: tage(30), status: "offen" }],
+      controls: ["A.8.5"] }
+  ];
+  const wirkDemo = [
+    { id: "w1", titel: "Audit-Feststellung: Berechtigungsreview fehlt", art: "abweichung", status: "in Umsetzung", quelle: "Internes Audit",
+      herkunftId: "", verantwortlich: "it@dihag.com",
+      massnahmen: [{ titel: "Quartalsreview einführen", verantwortlich: "it@dihag.com", frist: tage(-10), status: "in Umsetzung" }] },
+    { id: "w2", titel: "Warnung: Verdächtige Anmeldung aus ungewöhnlichem Land", art: "abweichung", status: "offen", quelle: CC_RMS.quelle,
+      herkunftId: "m365:al0", verantwortlich: "fedorov@dihag.com",
+      massnahmen: [{ titel: "Konto sperren und Kennwort zurücksetzen", verantwortlich: "fedorov@dihag.com", frist: tage(2), status: "offen" }] }
+  ];
+  Object.assign(Rms, {
+    soa: async () => soaDemo,
+    risiken: async () => risikenDemo,
+    wirksamkeit: async () => wirkDemo,
+    abweichungAnlegen: async ({ titel, herkunftId, massnahme, verantwortlich, frist }) => {
+      const id = "w" + (wirkDemo.length + 1);
+      wirkDemo.push({ id, titel, art: "abweichung", status: "offen", quelle: CC_RMS.quelle, herkunftId, verantwortlich,
+        massnahmen: [{ titel: massnahme, verantwortlich, frist, status: "offen" }] });
+      toast("Demo-Modus: Die Abweichung wurde nicht wirklich im RMS angelegt.");
+      return { id };
+    }
+  });
 
   // --- Microsoft-365-Signale simulieren ------------------------------------
   const zufall = (n, f) => Array.from({ length: n }, (_, i) => f(i));

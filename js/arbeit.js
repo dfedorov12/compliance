@@ -5,15 +5,13 @@
 // mehrere Detaildialoge gemeinsam nutzen.
 
 // In welcher Ansicht (und welchem Unterreiter) ein Bereich zu Hause ist.
+// Controls, Risiken, Vorfälle und Maßnahmen liegen im RMS (siehe rms.js).
 const CC_ORT = {
-  controls:  { ansicht: "controls" },
-  aufgaben:  { ansicht: "aufgaben" },
-  risiken:   { ansicht: "risiken" },
   vvt:       { ansicht: "datenschutz", tab: "vvt" },
   tom:       { ansicht: "datenschutz", tab: "tom" },
   avv:       { ansicht: "datenschutz", tab: "avv" },
   anfragen:  { ansicht: "datenschutz", tab: "anfragen" },
-  vorfaelle: { ansicht: "datenschutz", tab: "vorfaelle" }
+  nachweise: { ansicht: "nachweise" }
 };
 
 // Wunsch-Unterreiter für die nächste Darstellung einer Ansicht (z. B. nach Direktlink).
@@ -26,7 +24,10 @@ function tabWunsch(ansicht) {
 
 function linkZuEintrag(entity, id) {
   const ort = CC_ORT[entity] || {};
-  const p = new URLSearchParams({ ansicht: ort.ansicht || "dashboard", eintrag: `${entity}:${id}` });
+  // Nachweise hängen an der Control-ID; so verlinkt auch das RMS aus seiner SoA.
+  const p = entity === "nachweise"
+    ? new URLSearchParams({ ansicht: "nachweise", control: id })
+    : new URLSearchParams({ ansicht: ort.ansicht || "dashboard", eintrag: `${entity}:${id}` });
   // Im Demo-Modus bleibt der Link im Demo-Modus, sonst führte er zur Anmeldung.
   if (new URLSearchParams(location.search).has("demo")) p.set("demo", "1");
   return `${location.origin}${location.pathname}?${p.toString()}`;
@@ -42,13 +43,23 @@ async function oeffneEintrag(entity, id, { ansichtWechseln = false } = {}) {
     if (ort.tab) _tabWunsch[ort.ansicht] = ort.tab;
     zeigeAnsicht(ort.ansicht);
   }
+  // Nachweise öffnen immer das Control; die id ist die Control-ID oder ein Listeneintrag.
+  if (entity === "nachweise") {
+    let control = String(id);
+    if (!control.startsWith("A.")) {
+      const n = (await Store.loadOderLeer("nachweise")).find(x => String(x.id) === control);
+      control = n ? n.Title : control;
+    }
+    zeigeNachweisControl(control, () => zeigeAnsicht(_aktiveAnsicht));
+    return;
+  }
   let items;
   try { items = await Store.load(entity); }
   catch (e) { toast("Eintrag konnte nicht geladen werden: " + e.message, 6000); return; }
   const rec = items.find(i => String(i.id) === String(id));
   if (!rec) { toast("Eintrag nicht gefunden. Wurde er gelöscht?"); return; }
   const neuladen = () => zeigeAnsicht(_aktiveAnsicht);
-  const oeffner = { controls: zeigeControl, vorfaelle: zeigeVorfall, anfragen: zeigeAnfrage }[entity];
+  const oeffner = { anfragen: zeigeAnfrage }[entity];
   if (oeffner) oeffner(rec, neuladen);
   else oeffneEditor(entity, rec, neuladen);
 }
@@ -65,12 +76,6 @@ async function sammleArbeitsvorrat() {
   const neu = (entity, rec, datum, art, was, wer, extra = {}) =>
     liste.push({ entity, id: rec.id, datum, art, was, wer: String(wer || "").toLowerCase(), ...extra });
 
-  d.aufgaben.filter(a => !CC_ERLEDIGT.includes(a.Status) && a.Faellig)
-    .forEach(a => neu("aufgaben", a, a.Faellig, "Aufgabe", a.Title, a.Verantwortlich, { prio: a.Prioritaet }));
-  d.controls.filter(c => c.Status !== "Nicht anwendbar" && c.NaechstePruefung)
-    .forEach(c => neu("controls", c, c.NaechstePruefung, "Control-Prüfung", `${c.Title} ${c.Bezeichnung}`, c.Verantwortlich));
-  d.risiken.filter(r => r.Status !== "Geschlossen" && r.Ueberpruefung)
-    .forEach(r => neu("risiken", r, r.Ueberpruefung, "Risikoprüfung", r.Title, r.Verantwortlich));
   d.vvt.filter(v => v.NaechstePruefung)
     .forEach(v => neu("vvt", v, v.NaechstePruefung, "VVT-Prüfung", v.Title, v.DSBFreigabe || dsb));
   d.avv.filter(a => a.NaechstePruefung && a.Status !== "Gekündigt")
@@ -79,14 +84,8 @@ async function sammleArbeitsvorrat() {
     .forEach(a => neu("avv", a, a.Ablauf, "Vertragsende", a.Title, a.Verantwortlich));
   d.anfragen.filter(a => anfrageOffen(a) && a.Frist)
     .forEach(a => neu("anfragen", a, a.Frist, "Betroffenenanfrage", `${a.Title} · ${a.Art}`, a.Verantwortlich || dsb, { dringend: true }));
-  d.vorfaelle
-    .filter(v => v.Status !== "Abgeschlossen" && String(v.Art).startsWith("Datenpanne")
-      && !["Erfolgt", "Nicht erforderlich"].includes(v.MeldungBehoerde))
-    .forEach(v => {
-      const frist = meldefrist(v);
-      if (frist) neu("vorfaelle", v, frist.toISOString().slice(0, 10), "Meldefrist 72 h", v.Title,
-        v.Verantwortlich || dsb, { dringend: true, fristZeit: frist });
-    });
+  // ISMS-Fristen aus dem RMS (Risiko-Reviews, Maßnahmen); öffnen sich dort.
+  liste.push(...await rmsArbeitsvorrat());
 
   return liste.sort((a, b) => a.datum.localeCompare(b.datum));
 }
@@ -141,12 +140,16 @@ async function renderArbeitsvorrat(box) {
             return `<span class="${t < 0 ? "ueberfaellig" : t <= 7 && r.dringend ? "warnung" : ""}">${fmtDatum(r.datum)}</span>
               <span class="muted">(${text})</span>`;
           } },
-        { key: "art", label: "Art", render: r => r.dringend ? `<strong>${esc(r.art)}</strong>` : esc(r.art) },
+        { key: "art", label: "Art", render: r => (r.dringend ? `<strong>${esc(r.art)}</strong>` : esc(r.art)) + (r.extern ? " ↗" : "") },
         { key: "was", label: "Gegenstand" },
         { key: "wer", label: "Verantwortlich", render: r => esc(r.wer || "–") }
       ], { leer: meine ? "Für Sie steht im gewählten Zeitraum nichts an." : "Im gewählten Zeitraum steht nichts an." });
     box.querySelectorAll("[data-idx]").forEach(tr => {
-      tr.onclick = () => { const e = sichtbar[Number(tr.dataset.idx)]; oeffneEintrag(e.entity, e.id); };
+      tr.onclick = () => {
+        const e = sichtbar[Number(tr.dataset.idx)];
+        if (e.extern) window.open(e.extern, "_blank", "noopener");
+        else oeffneEintrag(e.entity, e.id);
+      };
     });
   };
   box.querySelectorAll("[data-meine], [data-zeitraum], [data-art]").forEach(x => { x.onchange = zeige; });
@@ -178,6 +181,18 @@ async function globaleSuche(begriff) {
       });
     }
   }
+  // Risiken aus dem RMS: Treffer öffnen sich dort.
+  try {
+    (await Rms.risiken()).filter(r => (r.titel + " " + r.beschreibung).toLowerCase().includes(q)).forEach(r => {
+      const text = r.titel.toLowerCase().includes(q) ? r.titel : r.beschreibung;
+      const pos = text.toLowerCase().indexOf(q);
+      treffer.push({
+        extern: Rms.link("risiken", { risiko: r.id }), bereich: "Risiken (RMS)", titel: r.titel,
+        untertitel: r.kategorie, feld: r.titel.toLowerCase().includes(q) ? "Titel" : "Beschreibung",
+        auszug: text.slice(Math.max(0, pos - 40), pos + q.length + 60), status: ""
+      });
+    });
+  } catch (e) { /* ohne RMS-Zugriff nur lokale Treffer */ }
   return treffer;
 }
 
@@ -193,20 +208,24 @@ async function zeigeSuche(begriff) {
     ? `<p class="muted">${treffer.length} Treffer</p>` + Object.entries(gruppen).map(([bereich, liste]) => `
         <h3 class="abschnitt">${esc(bereich)} <span class="muted">(${liste.length})</span></h3>
         <div class="suchtreffer">${liste.slice(0, 30).map(t => `
-          <button class="suchtreffer-zeile" data-entity="${t.entity}" data-id="${esc(t.id)}">
-            <span><strong>${esc(t.titel)}</strong> ${esc(t.untertitel)} ${t.status ? statusBadge(t.status) : ""}</span>
+          <button class="suchtreffer-zeile" data-entity="${t.entity || ""}" data-id="${esc(t.id || "")}" data-extern="${esc(t.extern || "")}">
+            <span><strong>${esc(t.titel)}</strong> ${esc(t.untertitel)} ${t.status ? statusBadge(t.status) : ""}${t.extern ? " ↗" : ""}</span>
             <span class="muted">${esc(t.feld)}: ${markiere(t.auszug)}</span>
           </button>`).join("")}
           ${liste.length > 30 ? `<p class="muted">… und ${liste.length - 30} weitere. Bitte Suchbegriff eingrenzen.</p>` : ""}
         </div>`).join("")
-    : `<p class="muted">Keine Treffer in Controls, Aufgaben, Risiken, Datenschutz und Vorfällen.</p>`;
+    : `<p class="muted">Keine Treffer im Datenschutz, bei den M365-Nachweisen und in den RMS-Risiken.</p>`;
   document.querySelectorAll(".suchtreffer-zeile").forEach(b => {
-    b.onclick = () => { Dialog.schliesse(); oeffneEintrag(b.dataset.entity, b.dataset.id); };
+    b.onclick = () => {
+      if (b.dataset.extern) { window.open(b.dataset.extern, "_blank", "noopener"); return; }
+      Dialog.schliesse();
+      oeffneEintrag(b.dataset.entity, b.dataset.id);
+    };
   });
 }
 
 // ===========================================================================
-// Nachweisdateien (gemeinsam für Controls, Vorfälle, Anfragen)
+// Nachweisdateien (gemeinsam für M365-Nachweise und Anfragen)
 // ===========================================================================
 
 function nachweisHtml() {

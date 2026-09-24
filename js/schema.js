@@ -8,79 +8,6 @@
 
 const CC_SCHEMA = {
 
-  controls: {
-    list: CC_LISTS.controls,
-    label: "Controls",
-    singular: "Control",
-    titelLabel: "Control-ID",
-    sort: (a, b) => sortiereControlId(a.Title, b.Title),
-    tabelle: ["Title", "Bezeichnung", "Framework", "Status", "Reifegrad", "Verantwortlich", "NaechstePruefung"],
-    felder: [
-      { name: "Title",           label: "Control-ID", type: "text", required: true },
-      { name: "Framework",       label: "Framework", type: "select", options: () => Object.keys(CC_FRAMEWORKS), required: true },
-      { name: "Kategorie",       label: "Kategorie", type: "text" },
-      { name: "Bezeichnung",     label: "Bezeichnung", type: "text", span2: true, required: true },
-      { name: "Anforderung",     label: "Anforderung", type: "note", span2: true },
-      { name: "Status",          label: "Status", type: "select", options: () => CC_CONTROL_STATUS, required: true },
-      { name: "Reifegrad",       label: "Reifegrad", type: "select", options: () => CC_REIFEGRADE.map(r => r.label) },
-      { name: "Verantwortlich",  label: "Verantwortlich (E-Mail)", kurz: "Verantwortlich", type: "person" },
-      { name: "Umsetzung",       label: "Umsetzung / Beschreibung", type: "note", span2: true },
-      { name: "NachweisText",    label: "Nachweis (Fundstelle)", type: "note", span2: true },
-      { name: "Begruendung",     label: "Begründung bei „Nicht anwendbar“", type: "note", span2: true },
-      { name: "LetztePruefung",  label: "Letzte Prüfung", type: "date" },
-      { name: "NaechstePruefung",label: "Nächste Prüfung", type: "date" },
-      { name: "M365Signal",      label: "M365-Signal", type: "text", hint: "Verknüpfung zu einem Live-Wert aus Microsoft 365" },
-      { name: "RisikoIds",       label: "Verknüpfte Risiken", type: "text" }
-    ]
-  },
-
-  aufgaben: {
-    list: CC_LISTS.aufgaben,
-    label: "Aufgaben",
-    singular: "Aufgabe",
-    titelLabel: "Aufgabe",
-    sort: (a, b) => (a.Faellig || "9999").localeCompare(b.Faellig || "9999"),
-    tabelle: ["Title", "ControlId", "Verantwortlich", "Faellig", "Prioritaet", "Status"],
-    felder: [
-      { name: "Title",          label: "Aufgabe", type: "text", span2: true, required: true },
-      { name: "Beschreibung",   label: "Beschreibung", type: "note", span2: true },
-      { name: "ControlId",      label: "Bezug (Control-ID)", kurz: "Control", type: "text" },
-      { name: "Verantwortlich", label: "Verantwortlich (E-Mail)", kurz: "Verantwortlich", type: "person", required: true },
-      { name: "Faellig",        label: "Fällig am", type: "date", required: true },
-      { name: "Prioritaet",     label: "Priorität", type: "select", options: () => ["Hoch", "Mittel", "Niedrig"] },
-      { name: "Status",         label: "Status", type: "select", options: () => ["Offen", "In Arbeit", "Erledigt", "Verworfen"], required: true },
-      { name: "Erledigt",       label: "Erledigt am", type: "date" },
-      { name: "Quelle",         label: "Quelle", type: "text", hint: "z. B. Audit 2026, Vorfall, Secure Score" },
-      { name: "Erinnert",       label: "Letzte Erinnerung", type: "text", readonly: true }
-    ]
-  },
-
-  risiken: {
-    list: CC_LISTS.risiken,
-    label: "Risiken",
-    singular: "Risiko",
-    titelLabel: "Risiko",
-    sort: (a, b) => (Number(b.Bewertung) || 0) - (Number(a.Bewertung) || 0),
-    tabelle: ["Title", "Kategorie", "Eintritt", "Auswirkung", "Bewertung", "Strategie", "Status"],
-    beimSpeichern: werte => berechneRisiko(werte),
-    felder: [
-      { name: "Title",          label: "Risiko", type: "text", span2: true, required: true },
-      { name: "Beschreibung",   label: "Beschreibung / Szenario", type: "note", span2: true },
-      { name: "Kategorie",      label: "Kategorie", type: "select", options: () => ["IT-Sicherheit", "Datenschutz", "Recht & Compliance", "Lieferkette", "Betrieb", "Personal", "Physisch"] },
-      { name: "Eintritt",       label: "Eintrittswahrscheinlichkeit (1–5)", kurz: "Eintritt", type: "number", min: 1, max: 5, required: true },
-      { name: "Auswirkung",     label: "Auswirkung (1–5)", kurz: "Auswirkung", type: "number", min: 1, max: 5, required: true },
-      { name: "Bewertung",      label: "Risikowert", type: "number", readonly: true, hint: "Eintritt × Auswirkung (wird berechnet)" },
-      { name: "Strategie",      label: "Strategie", type: "select", options: () => ["Vermindern", "Vermeiden", "Übertragen", "Akzeptieren"] },
-      { name: "Massnahmen",     label: "Maßnahmen", type: "note", span2: true },
-      { name: "RestrisikoE",    label: "Restrisiko – Eintritt (1–5)", type: "number", min: 1, max: 5 },
-      { name: "RestrisikoA",    label: "Restrisiko – Auswirkung (1–5)", type: "number", min: 1, max: 5 },
-      { name: "ControlIds",     label: "Verknüpfte Controls", type: "text", hint: "kommagetrennt, z. B. A.8.12, N.1.a" },
-      { name: "Verantwortlich", label: "Risikoeigner (E-Mail)", type: "person" },
-      { name: "Status",         label: "Status", type: "select", options: () => ["Offen", "In Behandlung", "Akzeptiert", "Geschlossen"], required: true },
-      { name: "Ueberpruefung",  label: "Nächste Überprüfung", type: "date" }
-    ]
-  },
-
   vvt: {
     list: CC_LISTS.vvt,
     label: "Verarbeitungstätigkeiten",
@@ -139,7 +66,7 @@ const CC_SCHEMA = {
       { name: "Umsetzung",      label: "Umsetzung im Haus", type: "note", span2: true },
       { name: "Status",         label: "Status", type: "select", options: () => ["Geplant", "Umgesetzt", "Teilweise", "Nicht anwendbar"], required: true },
       { name: "Verantwortlich", label: "Verantwortlich (E-Mail)", kurz: "Verantwortlich", type: "person" },
-      { name: "ControlIds",     label: "Verknüpfte Controls", type: "text" },
+      { name: "ControlIds",     label: "Verknüpfte Controls (RMS)", type: "text", hint: "kommagetrennt, z. B. A.8.5, A.8.24" },
       { name: "LetztePruefung", label: "Letzte Prüfung", type: "date" }
     ]
   },
@@ -167,35 +94,6 @@ const CC_SCHEMA = {
       { name: "Verantwortlich",   label: "Interner Ansprechpartner", type: "person" },
       { name: "Status",           label: "Status", type: "select", options: () => ["In Prüfung", "Aktiv", "Gekündigt"], required: true },
       { name: "NaechstePruefung", label: "Nächste Prüfung", type: "date" }
-    ]
-  },
-
-  vorfaelle: {
-    list: CC_LISTS.vorfaelle,
-    label: "Vorfälle & Datenpannen",
-    singular: "Vorfall",
-    titelLabel: "Vorfall",
-    sort: (a, b) => (b.Entdeckt || "").localeCompare(a.Entdeckt || ""),
-    tabelle: ["Title", "Art", "Entdeckt", "Risiko", "MeldungBehoerde", "Status"],
-    felder: [
-      { name: "Title",           label: "Vorfall", type: "text", span2: true, required: true },
-      { name: "Art",             label: "Art", type: "select", required: true, options: () => ["Datenpanne (DSGVO Art. 33)", "Sicherheitsvorfall", "NIS2-relevanter Vorfall", "Verdacht / Ereignis"] },
-      { name: "Entdeckt",        label: "Entdeckt am", type: "date", required: true },
-      { name: "EntdecktUhr",     label: "Uhrzeit der Kenntnis", type: "text", hint: "HH:MM – Startpunkt der 72-Stunden-Frist" },
-      { name: "Beschreibung",    label: "Was ist passiert?", type: "note", span2: true, required: true },
-      { name: "Ursache",         label: "Ursache", type: "note", span2: true },
-      { name: "Betroffene",      label: "Betroffene Personengruppen", type: "text" },
-      { name: "Anzahl",          label: "Anzahl Betroffener (geschätzt)", type: "number" },
-      { name: "Datenkategorien", label: "Betroffene Datenkategorien", type: "note", span2: true },
-      { name: "Risiko",          label: "Risiko für Betroffene", kurz: "Risiko", type: "select", options: () => ["Gering", "Mittel", "Hoch"], required: true },
-      { name: "MeldungBehoerde", label: "Meldung Aufsichtsbehörde / BSI", kurz: "Meldung", type: "select", options: () => ["Nicht erforderlich", "Erforderlich", "Erfolgt"], required: true },
-      { name: "MeldungAm",       label: "Gemeldet am", type: "date" },
-      { name: "Benachrichtigung",label: "Benachrichtigung Betroffener (Art. 34)", type: "select", options: () => ["Nicht erforderlich", "Erforderlich", "Erfolgt"] },
-      { name: "Massnahmen",      label: "Sofort- und Folgemaßnahmen", type: "note", span2: true },
-      { name: "Verantwortlich",  label: "Verantwortlich (E-Mail)", kurz: "Verantwortlich", type: "person" },
-      { name: "Status",          label: "Status", type: "select", options: () => ["Offen", "In Bearbeitung", "Abgeschlossen"], required: true },
-      { name: "Abgeschlossen",   label: "Abgeschlossen am", type: "date" },
-      { name: "Erinnert",        label: "Letzte Erinnerung", type: "text", readonly: true }
     ]
   },
 
@@ -238,6 +136,27 @@ const CC_SCHEMA = {
       { name: "Verantwortlich",    label: "Bearbeitet von (E-Mail)", kurz: "Bearbeiter", type: "person" },
       { name: "Status",            label: "Status", type: "select", required: true, options: () => CC_ANFRAGE_STATUS },
       { name: "Erinnert",          label: "Letzte Erinnerung", type: "text", readonly: true }
+    ]
+  },
+
+  // Gesicherte Live-Werte aus Microsoft 365 je Annex-A-Control. Jede Sicherung
+  // ist ein eigener Eintrag (Verlauf); das RMS zeigt in der SoA den jüngsten.
+  nachweise: {
+    list: CC_LISTS.nachweise,
+    label: "M365-Nachweise",
+    singular: "M365-Nachweis",
+    titelLabel: "Control",
+    versteckt: true,
+    sort: (a, b) => (b.Zeit || "").localeCompare(a.Zeit || ""),
+    tabelle: ["Title", "Bezeichnung", "Signal", "Wert", "Stand", "ErfasstVon"],
+    felder: [
+      { name: "Title",       label: "Control-ID", type: "text", required: true },
+      { name: "Bezeichnung", label: "Control", type: "text" },
+      { name: "Signal",      label: "M365-Signal", type: "text" },
+      { name: "Wert",        label: "Wert zum Stichtag", type: "note", span2: true },
+      { name: "Stand",       label: "Stand", type: "date" },
+      { name: "Zeit",        label: "Zeitpunkt (ISO)", type: "text", readonly: true },
+      { name: "ErfasstVon",  label: "Gesichert von", type: "person" }
     ]
   }
 };

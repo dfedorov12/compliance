@@ -4,12 +4,12 @@
 Laeuft taeglich via GitHub Actions und erledigt, was die SPA im Browser nicht
 kann (zeitgesteuerte Erinnerungen und Berichte):
 
-  1. Aufgaben: Erinnerung vor Faelligkeit, Eskalation nach Ueberfaelligkeit
-  2. Controls: faellige Wiederholungspruefungen an die Verantwortlichen
-  3. Datenschutz: faellige VVT- und AV-Vertragspruefungen an den DSB
-  4. Datenpannen: Ueberwachung der 72-Stunden-Meldefrist (Art. 33 DSGVO)
-  5. Betroffenenanfragen: Antwortfrist nach Art. 12 Abs. 3 DSGVO
-  6. Montags: Wochenbericht an CISO, DSB und Administratoren
+  1. Datenschutz: faellige VVT- und AV-Vertragspruefungen an den DSB
+  2. Betroffenenanfragen: Antwortfrist nach Art. 12 Abs. 3 DSGVO
+  3. Montags: Datenschutz-Wochenbericht an DSB, CISO und Administratoren
+
+Controls/SoA, Risiken, Vorfaelle und Massnahmen fuehrt das RMS; dessen eigener
+Cron (richtlinienmanagementsystem/scripts/erinnerungen.mjs) erinnert dort.
 
 Alle Mails verlinken direkt auf den betroffenen Eintrag in der App.
 
@@ -37,12 +37,9 @@ SENDER = os.environ.get("CC_SENDER", "administrator@dihag.com")
 APP_URL = os.environ.get("CC_APP_URL", "https://dfedorov12.github.io/compliance/")
 DRY_RUN = os.environ.get("CC_DRY_RUN", "").lower() in ("1", "true", "ja")
 
-L_CONTROLS = "Compliance_Controls"
-L_AUFGABEN = "Compliance_Aufgaben"
-L_RISIKEN = "Compliance_Risiken"
 L_VVT = "Compliance_VVT"
 L_AVV = "Compliance_AVV"
-L_VORFAELLE = "Compliance_Vorfaelle"
+L_TOM = "Compliance_TOM"
 L_ANFRAGEN = "Compliance_Anfragen"
 L_KONFIG = "Compliance_Konfiguration"
 
@@ -207,87 +204,7 @@ def load_konfig():
 
 
 # --------------------------------------------------------------------------
-# 1. Aufgaben: Erinnerung und Eskalation
-# --------------------------------------------------------------------------
-
-def run_aufgaben(k):
-    vorher = int(k.get("erinnerungTageVorher") or 14)
-    eskal = int(k.get("eskalationTageNach") or 7)
-    eskalationsziel = [k.get("cisoEmail")] + list(k.get("adminEmails") or [])
-    erinnert = eskaliert = 0
-
-    for it in all_items(L_AUFGABEN):
-        f = it["fields"]
-        if f.get("Status") not in ("Offen", "In Arbeit"):
-            continue
-        rest = tage_bis(f.get("Faellig"))
-        if rest is None:
-            continue
-        marke = str(f.get("Erinnert") or "")
-        heute_str = HEUTE.isoformat()
-        titel = f.get("Title", "")
-        wer = (f.get("Verantwortlich") or "").strip()
-        try:
-            if rest < -eskal and not marke.startswith("eskaliert"):
-                send_mail(eskalationsziel,
-                          f"Compliance-Eskalation: „{titel}“ seit {abs(rest)} Tagen überfällig",
-                          rahmen(f"<p>Die Aufgabe <b>{titel}</b> (verantwortlich: {wer or 'nicht zugewiesen'}) "
-                                 f"ist seit <b>{abs(rest)} Tagen</b> überfällig.</p>"
-                                 f"<p>Bezug: {f.get('ControlId') or '–'}</p>",
-                                 "Eskalation einer überfälligen Maßnahme",
-                                 link_zu("aufgaben", it["id"], "aufgaben")))
-                patch_fields(L_AUFGABEN, it["id"], {"Erinnert": "eskaliert " + heute_str})
-                eskaliert += 1
-            elif -eskal <= rest <= vorher and marke[:10] != heute_str and not marke.startswith("eskaliert"):
-                lage = "überfällig seit %d Tagen" % abs(rest) if rest < 0 else \
-                       ("heute fällig" if rest == 0 else "fällig in %d Tagen" % rest)
-                send_mail(wer, f"Compliance-Aufgabe {lage}: „{titel}“",
-                          rahmen(f"<p>Ihre Aufgabe <b>{titel}</b> ist <b>{lage}</b> "
-                                 f"(Termin {f.get('Faellig','')[:10]}).</p>"
-                                 f"<p>{f.get('Beschreibung') or ''}</p>",
-                                 "Erinnerung an eine Compliance-Maßnahme",
-                                 link_zu("aufgaben", it["id"], "aufgaben")))
-                patch_fields(L_AUFGABEN, it["id"], {"Erinnert": heute_str})
-                erinnert += 1
-        except Exception as e:
-            print(f"WARN Aufgabe {titel}: {e}", file=sys.stderr)
-
-    print(f"Aufgaben: {erinnert} Erinnerungen, {eskaliert} Eskalationen")
-
-
-# --------------------------------------------------------------------------
-# 2. Controls: faellige Wiederholungspruefungen
-# --------------------------------------------------------------------------
-
-def run_controls(k):
-    vorher = int(k.get("erinnerungTageVorher") or 14)
-    offen = {}
-    for it in all_items(L_CONTROLS):
-        f = it["fields"]
-        if f.get("Status") == "Nicht anwendbar":
-            continue
-        rest = tage_bis(f.get("NaechstePruefung"))
-        if rest is None or rest > vorher:
-            continue
-        ziel = (f.get("Verantwortlich") or k.get("cisoEmail") or "").strip()
-        offen.setdefault(ziel, []).append(
-            f"<li><b>{verlinkt(f.get('Title'), link_zu('controls', it['id'], 'controls'))}</b> – {f.get('Bezeichnung','')} "
-            f"({'überfällig' if rest < 0 else 'fällig in %d Tagen' % rest})</li>")
-
-    for ziel, zeilen in offen.items():
-        if not ziel:
-            continue
-        send_mail(ziel, f"Compliance: {len(zeilen)} Control-Prüfung(en) fällig",
-                  rahmen(f"<p>Für folgende Controls steht die Wiederholungsprüfung an:</p>"
-                         f"<ul>{''.join(zeilen)}</ul>"
-                         f"<p>Bitte Umsetzung und Nachweis im Cockpit aktualisieren und die Prüfung "
-                         f"mit „Geprüft (heute)“ dokumentieren.</p>",
-                         "Fällige Control-Prüfungen"))
-    print(f"Controls: Prüfhinweise an {len([z for z in offen if z])} Empfänger")
-
-
-# --------------------------------------------------------------------------
-# 3. Datenschutz: VVT- und AV-Vertragspruefungen
+# 1. Datenschutz: VVT- und AV-Vertragspruefungen
 # --------------------------------------------------------------------------
 
 def run_datenschutz(k):
@@ -322,55 +239,7 @@ def run_datenschutz(k):
 
 
 # --------------------------------------------------------------------------
-# 4. Datenpannen: 72-Stunden-Meldefrist
-# --------------------------------------------------------------------------
-
-def run_vorfaelle(k):
-    ziele = [k.get("dsbEmail"), k.get("cisoEmail")] + list(k.get("adminEmails") or [])
-    gemeldet = 0
-    for it in all_items(L_VORFAELLE):
-        f = it["fields"]
-        if f.get("Status") == "Abgeschlossen":
-            continue
-        if not str(f.get("Art", "")).startswith("Datenpanne"):
-            continue
-        if f.get("MeldungBehoerde") in ("Erfolgt", "Nicht erforderlich"):
-            continue
-        entdeckt = datum(f.get("Entdeckt"))
-        if not entdeckt:
-            continue
-        uhr = str(f.get("EntdecktUhr") or "00:00")
-        try:
-            stunde, minute = (int(x) for x in uhr.split(":")[:2])
-        except ValueError:
-            stunde, minute = 0, 0
-        start = datetime.datetime.combine(entdeckt, datetime.time(stunde, minute), tzinfo=ZONE)
-        frist = start + datetime.timedelta(hours=72)
-        rest_h = (frist - NOW).total_seconds() / 3600
-        if rest_h > 48:
-            continue
-        marke = str(f.get("Erinnert") or "")
-        stufe = "abgelaufen" if rest_h < 0 else ("kritisch" if rest_h <= 24 else "hinweis")
-        if marke == stufe:
-            continue
-        lage = ("Die Meldefrist ist seit %.0f Stunden ABGELAUFEN." % abs(rest_h)) if rest_h < 0 else \
-               ("Es verbleiben noch %.0f Stunden." % rest_h)
-        send_mail(ziele, f"DSGVO-Meldefrist: „{f.get('Title')}“ – {lage}",
-                  rahmen(f"<p>Für die Datenpanne <b>{f.get('Title')}</b> (entdeckt am "
-                         f"{entdeckt.strftime('%d.%m.%Y')} {uhr}) läuft die 72-Stunden-Frist des "
-                         f"Art. 33 DSGVO.</p><p><b>{lage}</b> Fristende: "
-                         f"{frist.astimezone(ZONE).strftime('%d.%m.%Y %H:%M')} Uhr.</p>"
-                         f"<p>Risiko für Betroffene: {f.get('Risiko','–')} · "
-                         f"Meldestatus: {f.get('MeldungBehoerde','–')}</p>",
-                         "72-Stunden-Meldefrist läuft",
-                         link_zu("vorfaelle", it["id"], "datenschutz")))
-        patch_fields(L_VORFAELLE, it["id"], {"Erinnert": stufe})
-        gemeldet += 1
-    print(f"Vorfälle: {gemeldet} Fristhinweise")
-
-
-# --------------------------------------------------------------------------
-# 5. Betroffenenanfragen: Antwortfrist nach Art. 12 Abs. 3 DSGVO
+# 2. Betroffenenanfragen: Antwortfrist nach Art. 12 Abs. 3 DSGVO
 # --------------------------------------------------------------------------
 
 def run_anfragen(k):
@@ -416,45 +285,41 @@ def run_anfragen(k):
 
 
 # --------------------------------------------------------------------------
-# 6. Wochenbericht (montags)
+# 3. Datenschutz-Wochenbericht (montags)
 # --------------------------------------------------------------------------
 
 def run_wochenbericht(k):
     if HEUTE.weekday() != 0:
         return
-    ziele = [k.get("cisoEmail"), k.get("dsbEmail")] + list(k.get("adminEmails") or [])
-    controls = [i["fields"] for i in all_items(L_CONTROLS)]
-    aufgaben = [i["fields"] for i in all_items(L_AUFGABEN)]
-    risiken = [i["fields"] for i in all_items(L_RISIKEN)]
-    vorfaelle = [i["fields"] for i in all_items(L_VORFAELLE)]
-    anfragen = [i["fields"] for i in items_oder_leer(L_ANFRAGEN)]
+    ziele = [k.get("dsbEmail"), k.get("cisoEmail")] + list(k.get("adminEmails") or [])
+    vvt = [i["fields"] for i in items_oder_leer(L_VVT)]
+    avv = [i["fields"] for i in items_oder_leer(L_AVV)]
+    tom = [i["fields"] for i in items_oder_leer(L_TOM)]
+    anfragen = items_oder_leer(L_ANFRAGEN)
 
-    relevant = [c for c in controls if c.get("Status") != "Nicht anwendbar"]
-    punkte = sum(1 if c.get("Status") == "Umgesetzt" else 0.5 if c.get("Status") == "In Umsetzung" else 0
-                 for c in relevant)
-    grad = round(punkte / len(relevant) * 100) if relevant else 0
-    offen = [a for a in aufgaben if a.get("Status") in ("Offen", "In Arbeit")]
-    ueberfaellig = [a for a in offen if (tage_bis(a.get("Faellig")) or 0) < 0]
-    hoch = [r for r in risiken if float(r.get("Bewertung") or 0) >= 15 and r.get("Status") != "Geschlossen"]
-    offene_vorfaelle = [v for v in vorfaelle if v.get("Status") != "Abgeschlossen"]
-    offene_anfragen = [a for a in anfragen if a.get("Status") not in ("Beantwortet", "Abgeschlossen")]
-    knappe_anfragen = [a for a in offene_anfragen if (tage_bis(a.get("Frist")) is not None and tage_bis(a.get("Frist")) <= 7)]
+    offene_anfragen = [i for i in anfragen if i["fields"].get("Status") not in ("Beantwortet", "Abgeschlossen")]
+    knappe = [i for i in offene_anfragen
+              if tage_bis(i["fields"].get("Frist")) is not None and tage_bis(i["fields"].get("Frist")) <= 7]
+    vvt_faellig = [v for v in vvt if tage_bis(v.get("NaechstePruefung")) is not None and tage_bis(v.get("NaechstePruefung")) <= 30]
+    avv_faellig = [a for a in avv if a.get("Status") != "Gekündigt"
+                   and tage_bis(a.get("NaechstePruefung")) is not None and tage_bis(a.get("NaechstePruefung")) <= 30]
 
     html = (f"<table cellpadding='6' style='border-collapse:collapse'>"
-            f"<tr><td>Umsetzungsgrad Controls</td><td><b>{grad} %</b> ({len(relevant)} Controls)</td></tr>"
-            f"<tr><td>Offene Aufgaben</td><td><b>{len(offen)}</b>, davon {len(ueberfaellig)} überfällig</td></tr>"
-            f"<tr><td>Risiken mit hoher Bewertung</td><td><b>{len(hoch)}</b></td></tr>"
-            f"<tr><td>Offene Vorfälle</td><td><b>{len(offene_vorfaelle)}</b></td></tr>"
             f"<tr><td>Offene Betroffenenanfragen</td><td><b>{len(offene_anfragen)}</b>, "
-            f"davon {len(knappe_anfragen)} mit Frist in 7 Tagen oder überfällig</td></tr>"
+            f"davon {len(knappe)} mit Frist in 7 Tagen oder überfällig</td></tr>"
+            f"<tr><td>Verarbeitungstätigkeiten</td><td><b>{len(vvt)}</b>, {len(vvt_faellig)} Prüfung(en) in 30 Tagen fällig</td></tr>"
+            f"<tr><td>Auftragsverarbeiter</td><td><b>{len([a for a in avv if a.get('Status') == 'Aktiv'])}</b> aktiv, "
+            f"{len(avv_faellig)} Prüfung(en) in 30 Tagen fällig</td></tr>"
+            f"<tr><td>TOM umgesetzt</td><td><b>{len([x for x in tom if x.get('Status') == 'Umgesetzt'])}</b> von {len(tom)}</td></tr>"
             f"</table>")
-    if ueberfaellig:
-        html += ("<h3>Überfällige Maßnahmen</h3><ul>" + "".join(
-            f"<li>{a.get('Title')} – {a.get('Verantwortlich') or 'nicht zugewiesen'} "
-            f"(seit {abs(tage_bis(a.get('Faellig')) or 0)} Tagen)</li>" for a in ueberfaellig[:20]) + "</ul>")
+    if knappe:
+        html += ("<h3>Anfragen mit knapper Frist</h3><ul>" + "".join(
+            f"<li>{verlinkt(i['fields'].get('Title'), link_zu('anfragen', i['id'], 'datenschutz'))} "
+            f"({i['fields'].get('Art', '')}), Frist {str(i['fields'].get('Frist', ''))[:10]}</li>" for i in knappe[:20]) + "</ul>")
+    html += "<p style='color:#6d7d8e'>ISMS-Kennzahlen (SoA, Risiken, Maßnahmen) meldet das RMS.</p>"
 
-    send_mail(ziele, f"Compliance-Wochenbericht {HEUTE.strftime('%d.%m.%Y')}",
-              rahmen(html, f"Compliance-Wochenbericht {k.get('organisation','')}"))
+    send_mail(ziele, f"Datenschutz-Wochenbericht {HEUTE.strftime('%d.%m.%Y')}",
+              rahmen(html, f"Datenschutz-Wochenbericht {k.get('organisation','')}"))
     print("Wochenbericht versendet")
 
 
@@ -466,7 +331,7 @@ def main():
     if not k.get("erinnerungenAktiv", True):
         print("Erinnerungen sind in den App-Einstellungen deaktiviert – nichts zu tun.")
         return
-    for schritt in (run_aufgaben, run_controls, run_datenschutz, run_vorfaelle, run_anfragen, run_wochenbericht):
+    for schritt in (run_datenschutz, run_anfragen, run_wochenbericht):
         try:
             schritt(k)
         except Exception as e:

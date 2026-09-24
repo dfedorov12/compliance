@@ -2,16 +2,21 @@
 
 ## 1. Überblick
 
-Das Cockpit verbindet zwei Ebenen:
+Das Cockpit ist der **Microsoft-365- und Datenschutz-Teil** des ISMS und an das
+Richtlinienmanagementsystem (RMS, rms.dihag.de) angebunden:
 
-1. **Microsoft 365 / Purview (live über Microsoft Graph)** – Warnungen, Protokolle,
-   Bezeichnungen, eDiscovery, Betroffenenanfragen, bedingter Zugriff, Geräte, Secure Score.
-2. **Eigene Governance-Schicht (SharePoint-Listen)** – Controls nach ISO 27001, NIS2, TISAX
-   und DSGVO, Aufgaben, Risiken, VVT, TOM, Auftragsverarbeiter, Vorfälle.
+| Thema | Führend | Im Cockpit |
+|---|---|---|
+| Richtlinien, SoA, IMS-Abdeckung, Reifegrad | RMS | SoA-Stand wird gelesen und bei den M365-Nachweisen angezeigt |
+| Risikoregister | RMS (Liste „Risiken“ auf /sites/ISMS) | Kennzahlen, Reviews und Maßnahmen im Arbeitsvorrat, Suche |
+| Vorfälle und Datenpannen | RMS (Tickets + Bewertung, Fristen DSGVO/NIS2) | Verweis ins RMS |
+| Maßnahmen, Audits, Abweichungen | RMS (Register „Wirksamkeit“) | Kennzahlen, Arbeitsvorrat; aus M365-Warnungen wird eine Abweichung angelegt |
+| Microsoft 365 / Purview live | Cockpit | Warnungen, Protokolle, Bezeichnungen, eDiscovery, Identität, Geräte, Secure Score |
+| M365-Nachweise je Control | Cockpit (Liste `Compliance_M365Nachweise`) | Live-Wert sichern; die SoA im RMS zeigt ihn an |
+| VVT, TOM, AVV, Betroffenenanfragen | Cockpit | eigene Register |
 
-Der Mehrwert gegenüber dem Purview-Portal liegt in der Verbindung: Zu einem Control lässt sich
-ein **Live-Wert aus Microsoft 365 als Nachweis mit Stichtag** übernehmen, aus einer Warnung
-direkt eine Maßnahme erzeugen und aus allem ein prüffähiger Bericht ziehen.
+So gibt es jeden Datensatz genau einmal. Zwei Risikoregister oder zwei SoAs wären im Audit ein
+eigener Befund.
 
 ## 2. Voraussetzungen
 
@@ -22,7 +27,8 @@ direkt eine Maßnahme erzeugen und aus allem ein prüffähiger Bericht ziehen.
 | Mandant | `fdb70646-023a-403b-a4b9-1f474a935123` |
 | Plattform | **Einzelseitige Anwendung (SPA)**, Redirect-URI `https://dfedorov12.github.io/compliance/` |
 | SharePoint-Site | `dihag.sharepoint.com/sites/IT` |
-| Lizenzen | Betroffenenanfragen setzen Priva voraus, eDiscovery (Premium) eine E5-/Add-on-Lizenz |
+| RMS | rms.dihag.de; für die Anbindung braucht der angemeldete Benutzer Lesezugriff auf `/sites/ISMS` (Risiken, Wirksamkeit) |
+| Lizenzen | Microsoft Priva ist nicht bereitgestellt (daher das eigene Register für Betroffenenanfragen), eDiscovery (Premium) braucht eine E5-/Add-on-Lizenz |
 
 ## 3. Einrichtung in drei Schritten
 
@@ -60,30 +66,33 @@ Angeforderte Berechtigungen (alle **delegiert**, keine Anwendungsberechtigungen)
 
 ### 3.2 Listen anlegen
 
-App öffnen → **Einstellungen → „Listen prüfen / anlegen"**. Angelegt werden:
+App öffnen → **Einstellungen → „Listen prüfen / anlegen“**. Angelegt werden:
 
-`Compliance_Controls`, `Compliance_Aufgaben`, `Compliance_Risiken`, `Compliance_VVT`,
-`Compliance_TOM`, `Compliance_AVV`, `Compliance_Vorfaelle`, `Compliance_Anfragen`,
-`Compliance_Konfiguration` sowie die Dokumentbibliothek `Compliance_Nachweise`.
+`Compliance_VVT`, `Compliance_TOM`, `Compliance_AVV`, `Compliance_Anfragen`,
+`Compliance_M365Nachweise`, `Compliance_Konfiguration` sowie die Dokumentbibliothek `Compliance_Nachweise`.
 
-Kommt mit einem Update eine neue Liste hinzu (zuletzt `Compliance_Anfragen`), zeigt das Dashboard
-einen Hinweis, bis sie angelegt ist. Die übrigen Bereiche arbeiten bis dahin normal weiter.
+Kommt mit einem Update eine neue Liste hinzu, zeigt das Dashboard einen Hinweis, bis sie angelegt
+ist. Die übrigen Bereiche arbeiten bis dahin normal weiter.
 
-> **Datenschutz der Listen:** `Compliance_Anfragen` und `Compliance_Vorfaelle` enthalten
-> personenbezogene Daten. Die Berechtigung dieser beiden Listen sollte auf DSB und Compliance-Kreis
-> beschränkt werden (SharePoint → Listeneinstellungen → Berechtigungen, Vererbung unterbrechen).
+> **Aus früheren Versionen:** Die Listen `Compliance_Controls`, `Compliance_Aufgaben`,
+> `Compliance_Risiken` und `Compliance_Vorfaelle` nutzt das Cockpit nicht mehr, weil diese Themen
+> im RMS liegen. Falls sie angelegt wurden und leer sind, können sie in SharePoint gelöscht werden;
+> enthalten sie Daten, bitte vorher ins RMS übertragen.
+
+> **Datenschutz der Listen:** `Compliance_Anfragen` enthält personenbezogene Daten. Ihre Berechtigung
+> sollte auf DSB und Compliance-Kreis beschränkt werden (SharePoint → Listeneinstellungen →
+> Berechtigungen, Vererbung unterbrechen).
 
 Die Spalten stammen aus `js/schema.js`. Wird das Schema erweitert, legt derselbe Knopf die
-fehlenden Spalten nach – vorhandene Daten bleiben erhalten.
+fehlenden Spalten nach; vorhandene Daten bleiben erhalten.
 
-### 3.3 Rollen und Kataloge
+### 3.3 Rollen und RMS-Anbindung
 
-1. **Einstellungen** ausfüllen: Administratoren, Auditoren, DSB, CISO, Absender, Prüfzyklus,
-   Erinnerungsfristen, aktive Normenkataloge → **speichern**.
-2. **„Normenkatalog importieren"** – legt die Controls der gewählten Kataloge an
-   (vorhandene IDs werden übersprungen, der Import ist also wiederholbar).
-3. **„Berechtigungen prüfen"** – zeigt zeilenweise, welche Graph-Bereiche der Mandant
-   tatsächlich liefert. Das ist die schnellste Fehlersuche.
+1. **Einstellungen** ausfüllen: Administratoren, Auditoren, DSB, CISO, Absender, Erinnerungsfristen
+   → **speichern**.
+2. **„Anbindung prüfen“** (Karte „Anbindung an das RMS“): liest SoA, Risiken und das Register
+   „Wirksamkeit“ probeweise. Schlägt das fehl, fehlt meist der Lesezugriff auf `/sites/ISMS`.
+3. **„Berechtigungen prüfen“**: zeigt zeilenweise, welche Graph-Bereiche der Mandant liefert.
 
 > Solange keine Administratoren eingetragen sind, gilt der angemeldete Benutzer als
 > Administrator (Erstinstallation). Nach dem ersten Speichern greift die Liste.
@@ -96,7 +105,7 @@ fehlenden Spalten nach – vorhandene Daten bleiben erhalten.
 | **DSB** | erhält Datenschutz-Erinnerungen und Meldeentwürfe |
 | **CISO** | erhält Eskalationen und den Wochenbericht |
 | **Auditor** | lesender Zugriff, Berichte |
-| **alle Beschäftigten** | Aufgaben, Vorfälle melden, eigene Daten pflegen |
+| **alle Beschäftigten** | Datenschutz-Register lesen und pflegen, soweit SharePoint es erlaubt |
 
 Die Rollen steuern die Oberfläche. Der eigentliche Datenschutz erfolgt über die
 SharePoint-Berechtigungen der Listen – wer dort keine Rechte hat, sieht die Daten auch nicht.
@@ -104,31 +113,30 @@ Empfehlung: Leseberechtigung auf die Listen für den Compliance-Kreis beschränk
 
 ## 5. Tägliche Arbeit
 
-* **Warnung → Maßnahme:** Microsoft 365 → Warnungen → Warnung öffnen → „Aufgabe daraus anlegen".
-* **Control prüfen:** Controls → Control öffnen → Live-Nachweis abrufen → „Als Nachweis
-  übernehmen" → „Geprüft (heute)" setzt Prüfdatum und nächsten Termin automatisch.
-* **Datenpanne:** Datenschutz → Datenpannen → „+ Vorfall" mit Datum **und Uhrzeit** der Kenntnis
-  (Startpunkt der 72-Stunden-Frist) → „Meldeentwurf erzeugen" → prüfen → an DSB senden oder
-  in das Portal der Aufsichtsbehörde übertragen.
+* **Warnung → Maßnahme:** Microsoft 365 → Warnungen → Warnung öffnen → „Maßnahme im RMS anlegen“.
+  Das legt im RMS-Register „Wirksamkeit“ eine Abweichung mit Korrekturmaßnahme an (ISO 27001 10.2);
+  weiterbearbeitet wird sie im RMS. Der Warnungsdialog zeigt, ob es dazu schon einen Eintrag gibt.
+* **M365-Nachweise:** M365-Nachweise → Control öffnen → Live-Wert prüfen → „Als Nachweis sichern“.
+  Vor einem Audit „Alle Signale abrufen und sichern“: jedes Signal wird einmal abgerufen und für alle
+  zugehörigen Controls mit Stichtag gesichert. Die SoA im RMS zeigt den jüngsten Nachweis.
 * **Betroffenenanfrage:** Datenschutz → Betroffenenanfragen → „+ Betroffenenanfrage“. Vorgangsnummer,
   Eingang und Bearbeiter sind vorbelegt, die Antwortfrist rechnet die App (siehe unten). Im Vorgang:
   Identität prüfen, „In Durchsuchte Systeme übernehmen“ aus dem VVT-Suchumfang, bei Bedarf
   „eDiscovery-Fall anlegen“ und im Purview-Portal Postfach/OneDrive der Person durchsuchen, dann
   „Antwortentwurf“ und „Als beantwortet erfassen“.
-* **Audit:** Berichte → „Managementbericht erzeugen“ → drucken/als PDF speichern; für die
-  ISO-Zertifizierung „Erklärung zur Anwendbarkeit (SoA)“ (warnt bei Ausschlüssen ohne Begründung);
-  zusätzlich „Nachweis-Snapshot M365“ als CSV zum Stichtag.
+* **Datenpanne:** als Ticket erfassen; Bewertung und Meldefristen (DSGVO 72 h, NIS2) im RMS unter „Vorfälle“.
+* **Audit:** Berichte → „Datenschutzbericht“ → drucken/als PDF speichern; zusätzlich
+  „Nachweis-Snapshot M365“ als CSV. SoA und ISMS-Kennzahlen kommen aus dem RMS.
 
 ### Schneller arbeiten
 
 | Funktion | Wo | Nutzen |
 |---|---|---|
-| **Arbeitsvorrat** | Dashboard | Alle Fristen aus Aufgaben, Controls, Risiken, VVT, AV-Verträgen, Betroffenenanfragen und Datenpannen in einer Liste, filterbar nach „nur meine“, Zeitraum und Art. Klick öffnet den Eintrag. |
-| **Globale Suche** | Kopfzeile, Taste `/` | Durchsucht alle Bereiche auf einmal, Treffer mit Fundstelle. |
+| **Arbeitsvorrat** | Dashboard | Fristen aus VVT, AV-Verträgen und Betroffenenanfragen sowie aus dem RMS (Risiko-Reviews, Risiko- und Korrekturmaßnahmen) in einer Liste, filterbar nach „nur meine“, Zeitraum und Art. Klick öffnet den Eintrag, RMS-Einträge (↗) im RMS. |
+| **Globale Suche** | Kopfzeile, Taste `/` | Durchsucht Datenschutz, M365-Nachweise und die Risiken im RMS, Treffer mit Fundstelle. |
 | **Sammelbearbeitung** | jede Tabelle | Einträge ankreuzen, dann Verantwortliche, Status oder Termine für alle gleichzeitig setzen. Leere Felder bleiben unverändert, Frist und Risikowert werden je Eintrag neu berechnet. |
 | **Personenauswahl** | Personenfelder | Vorschläge aus dem Verzeichnis statt E-Mail-Adressen abzutippen. |
 | **Direktlinks** | „Link kopieren“ im Dialog | Link auf genau diesen Eintrag, z. B. für Teams. Erinnerungsmails verlinken ebenso direkt und funktionieren auch über die Anmeldung hinweg. |
-| **Verknüpfungen** | Control-Dialog | Zeigt Aufgaben, Risiken und TOM, die das Control nennen. |
 | **Gemerkte Filter** | alle Listen | Suchbegriff, Filter und zuletzt benutzter Unterreiter bleiben je Ansicht im Browser gespeichert. |
 
 ### Antwortfrist bei Betroffenenanfragen
@@ -139,7 +147,7 @@ ihn nicht, am letzten Tag des Monats; fällt das Ende auf Samstag oder Sonntag, 
 Montag. **Feiertage berücksichtigt die App nicht**, im Zweifel früher antworten. Eine Verlängerung
 muss der Person innerhalb des ersten Monats mitgeteilt werden; dafür gibt es einen Entwurf.
 
-## 6. Cron (Erinnerungen, Eskalationen, Wochenbericht)
+## 6. Cron (Erinnerungen und Wochenbericht)
 
 GitHub Actions ruft täglich `cron/compliance_cron.py` auf (App-only, Client-Credentials).
 Benötigt werden die Repository-Secrets `CC_TENANT_ID`, `CC_CLIENT_ID`, `CC_CLIENT_SECRET`
@@ -149,15 +157,12 @@ und `Mail.Send`. Details: [cron/README.md](cron/README.md).
 
 Der Lauf erledigt:
 
-1. Aufgaben: Erinnerung vor Fälligkeit, Eskalation an CISO/Administratoren nach Überfälligkeit
-2. Controls: fällige Wiederholungsprüfungen gebündelt an die Verantwortlichen
-3. Datenschutz: fällige VVT-/AV-Prüfungen und auslaufende Verträge an den DSB
-4. Datenpannen: Warnung, wenn die 72-Stunden-Frist unter 48 h fällt, unter 24 h und nach Ablauf
-   (die Uhrzeit der Kenntnis gilt als deutsche Zeit)
-5. Betroffenenanfragen: Hinweis 7 und 2 Tage vor Fristende, Eskalation nach Ablauf
-6. montags: Wochenbericht an CISO, DSB und Administratoren
+1. Datenschutz: fällige VVT-/AV-Prüfungen und auslaufende Verträge an den DSB
+2. Betroffenenanfragen: Hinweis 7 und 2 Tage vor Fristende, Eskalation nach Ablauf
+3. montags: Datenschutz-Wochenbericht an DSB, CISO und Administratoren
 
-Jede Mail verlinkt direkt auf den betroffenen Eintrag.
+Jede Mail verlinkt direkt auf den betroffenen Eintrag. Erinnerungen zu Risiken, Maßnahmen und
+Vorfällen verschickt der Cron des RMS.
 
 Fristen und Empfänger stammen aus den App-Einstellungen; `erinnerungenAktiv: false` schaltet
 alles ab. Ohne gesetzte Secrets endet der Lauf als grüner No-op. Manueller Testlauf über
@@ -167,12 +172,15 @@ alles ab. Ohne gesetzte Secrets endet der Lauf als grüner No-op. Manueller Test
 
 * **DLP-Richtlinien, Kommunikationscompliance, Insider-Risikomanagement und Compliance Manager**
   besitzen keine (vollständige) Graph-Schnittstelle. Konfiguriert wird weiterhin im Purview-Portal
-  bzw. per Security-&-Compliance-PowerShell; das Cockpit zeigt die daraus entstehenden Warnungen
-  und dokumentiert den Umsetzungsstand im jeweiligen Control.
+  bzw. per Security-&-Compliance-PowerShell; das Cockpit zeigt die daraus entstehenden Warnungen,
+  der Umsetzungsstand steht in der SoA des RMS.
 * Die Suche im Überwachungsprotokoll läuft asynchron und liegt je nach Mandant noch in der
   Beta-Schnittstelle; die App fällt automatisch auf `v1.0` zurück.
-* Betroffenenanfragen und eDiscovery Premium benötigen die entsprechende Lizenzierung,
-  sonst antwortet Graph mit 403/404 – die App zeigt dann einen Hinweis.
+* Microsoft Priva (Betroffenenanfragen) ist im Mandanten nicht bereitgestellt; die App zeigt das als
+  „nicht lizenziert“ und führt die Anfragen im eigenen Register. eDiscovery Premium braucht die
+  entsprechende Lizenz.
+* Die Anbindung ans RMS liest mit den Rechten des angemeldeten Benutzers. Wer `/sites/ISMS` nicht
+  lesen darf, sieht die ISMS-Kacheln nicht; das Cockpit funktioniert sonst normal weiter.
 * Ein Browser kann nichts zeitgesteuert tun; alles Terminliche erledigt der Cron-Job.
 
 ## 8. Änderungen am Datenmodell

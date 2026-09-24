@@ -36,22 +36,20 @@
     <nav id="mainNav" hidden>
       <button class="nav-btn active" data-view="dashboard">Dashboard</button>
       <button class="nav-btn" data-view="purview">Microsoft 365</button>
-      <button class="nav-btn" data-view="controls">Controls</button>
-      <button class="nav-btn" data-view="aufgaben">Aufgaben</button>
-      <button class="nav-btn" data-view="risiken">Risiken</button>
+      <button class="nav-btn" data-view="nachweise">M365-Nachweise</button>
       <button class="nav-btn" data-view="datenschutz">Datenschutz</button>
       <button class="nav-btn" data-view="berichte">Berichte</button>
       <button class="nav-btn" data-view="einstellungen" id="navEinstellungen" hidden>Einstellungen</button>
       <button class="nav-btn" data-view="hilfe">Hilfe</button>
+      <a class="nav-btn nav-extern" id="navRms" href="https://rms.dihag.de/" target="_blank" rel="noopener"
+         title="Richtlinien, SoA, Risiken, Vorfälle und Maßnahmen im RMS">ISMS im RMS ↗</a>
     </nav>
   </header>
 
   <main id="mainContent" hidden>
     <section id="view-dashboard" class="view active"></section>
     <section id="view-purview" class="view"></section>
-    <section id="view-controls" class="view"></section>
-    <section id="view-aufgaben" class="view"></section>
-    <section id="view-risiken" class="view"></section>
+    <section id="view-nachweise" class="view"></section>
     <section id="view-datenschutz" class="view"></section>
     <section id="view-berichte" class="view"></section>
     <section id="view-einstellungen" class="view"></section>
@@ -59,16 +57,22 @@
     <section id="view-hilfe" class="view">
       <div class="card help">
         <h2>Das Compliance-Cockpit in Kürze</h2>
-        <p>Das Cockpit bündelt zwei Welten: die <strong>Live-Daten aus Microsoft 365 und Purview</strong>
-           (Warnungen, Protokolle, Bezeichnungen, eDiscovery, Betroffenenanfragen, Geräte) und die
-           <strong>eigene Governance-Schicht</strong> (Controls nach ISO 27001, NIS2, TISAX und DSGVO,
-           Aufgaben, Risiken, Verarbeitungsverzeichnis, TOM, Auftragsverarbeiter, Vorfälle).
-           So entsteht aus Einzelmeldungen ein prüffähiger Nachweis.</p>
+        <p>Das Cockpit ist der <strong>Microsoft-365- und Datenschutz-Teil</strong> des ISMS. Es liefert die
+           Live-Daten aus Microsoft 365 und Purview (Warnungen, Protokolle, Bezeichnungen, eDiscovery,
+           Geräte, Secure Score), belegt die Controls des Anhangs A mit M365-Nachweisen und führt die
+           Datenschutz-Register: Verarbeitungsverzeichnis, TOM, Auftragsverarbeiter und Betroffenenanfragen.</p>
+
+        <h3>Zusammenspiel mit dem RMS</h3>
+        <p>Führend für das ISMS ist das <strong>Richtlinienmanagementsystem</strong> (rms.dihag.de): Richtlinien,
+           SoA, Risikoregister, Vorfälle und Maßnahmen gibt es nur dort. Das Cockpit liest diese Daten mit Ihren
+           Rechten, zeigt sie im Dashboard und im Arbeitsvorrat und öffnet zum Bearbeiten das RMS (Einträge mit
+           ↗). In die andere Richtung zeigt die SoA im RMS die hier gesicherten M365-Nachweise an. Aus einer
+           Microsoft-365-Warnung legen Sie mit einem Klick eine Abweichung mit Korrekturmaßnahme im RMS an.</p>
 
         <h3>Dashboard</h3>
-        <p>Kennzahlen auf einen Blick: Umsetzungsgrad der Controls, offene und überfällige Aufgaben,
-           hohe Risiken, offene Vorfälle sowie die Live-Kacheln aus Microsoft 365. Darunter stehen
-           alle Fristen der nächsten 30 Tage.</p>
+        <p>Oben die ISMS-Kennzahlen aus dem RMS (SoA-Umsetzung, hohe Risiken, offene Maßnahmen und
+           Abweichungen), darunter Datenschutz und der Arbeitsvorrat mit allen Fristen, ganz unten die
+           Live-Kacheln aus Microsoft 365.</p>
 
         <h3>Microsoft 365</h3>
         <ul>
@@ -83,22 +87,17 @@
               <strong>Secure Score</strong>.</li>
         </ul>
 
-        <h3>Controls</h3>
-        <p>Der Normenkatalog wird einmalig importiert und danach gepflegt: Status, Reifegrad (0–5),
-           Verantwortliche, Umsetzung und Nachweise. Zu vielen Controls liefert die App auf Knopfdruck
-           einen <strong>Live-Nachweis aus Microsoft 365</strong> – etwa die Zahl aktiver DLP-Richtlinien
-           für „Verhinderung von Datenlecks“ – der sich als Nachweis mit Stichtag übernehmen lässt.
-           Dateien (Screenshots, Protokolle, Konzepte) landen in der Bibliothek
-           <em>Compliance_Nachweise</em>.</p>
-
-        <h3>Aufgaben &amp; Risiken</h3>
-        <p>Maßnahmen mit Verantwortlichem und Frist, wahlweise nur die eigenen. Risiken werden nach
-           Eintrittswahrscheinlichkeit und Auswirkung bewertet und erscheinen in der 5×5-Matrix.</p>
+        <h3>M365-Nachweise</h3>
+        <p>Alle 93 Controls des Anhangs A mit ihrem Stand aus der SoA des RMS. Für 38 davon gibt es ein
+           Live-Signal aus Microsoft 365, etwa die aktiven Richtlinien für bedingten Zugriff bei „Sichere
+           Authentifizierung“. Den Wert sichern Sie mit Stichtag, einzeln oder für alle auf einmal; er erscheint
+           dann in der SoA im RMS. Dateien wie Screenshots oder Protokolle legen Sie im Control ab (Bibliothek
+           <em>Compliance_Nachweise</em>).</p>
 
         <h3>Datenschutz</h3>
-        <p>Verarbeitungsverzeichnis (Art. 30), TOM (Art. 32), Auftragsverarbeiter (Art. 28), Betroffenenanfragen
-           und das Vorfallregister. Bei Datenpannen läuft die <strong>72-Stunden-Frist</strong> sichtbar mit;
-           ein Meldeentwurf nach Art. 33 lässt sich erzeugen und an den Datenschutzbeauftragten senden.</p>
+        <p>Verarbeitungsverzeichnis (Art. 30), TOM (Art. 32), Auftragsverarbeiter (Art. 28) und
+           Betroffenenanfragen. <strong>Datenpannen</strong> werden als Ticket erfasst und im RMS unter „Vorfälle“
+           bewertet; dort laufen die Meldefristen nach DSGVO (72 Stunden) und NIS2 mit.</p>
 
         <h3>Betroffenenanfragen</h3>
         <p>Auskunft, Berichtigung, Löschung, Widerspruch und die übrigen Rechte nach Art. 15 bis 21 DSGVO werden
@@ -111,11 +110,12 @@
 
         <h3>Schneller arbeiten</h3>
         <ul>
-          <li><strong>Arbeitsvorrat</strong> auf dem Dashboard: alle Fristen aus allen Bereichen, auf Wunsch nur
-              Ihre eigenen. Ein Klick öffnet den Eintrag.</li>
-          <li><strong>Suche</strong> oben rechts oder Taste <kbd>/</kbd>: durchsucht alle Bereiche auf einmal.</li>
+          <li><strong>Arbeitsvorrat</strong> auf dem Dashboard: Fristen aus dem Datenschutz und aus dem RMS
+              (Risiko-Reviews, Maßnahmen), auf Wunsch nur Ihre eigenen. Ein Klick öffnet den Eintrag.</li>
+          <li><strong>Suche</strong> oben rechts oder Taste <kbd>/</kbd>: durchsucht Datenschutz, M365-Nachweise
+              und die Risiken im RMS.</li>
           <li><strong>Sammelbearbeitung</strong>: Einträge in einer Tabelle ankreuzen und Verantwortliche, Status
-              oder Termine für alle gleichzeitig setzen, etwa nach dem Import der Controls.</li>
+              oder Termine für alle gleichzeitig setzen.</li>
           <li><strong>Personenfelder</strong> schlagen Namen aus dem Verzeichnis vor.</li>
           <li><strong>Link kopieren</strong> im Dialog erzeugt einen Direktlink auf den Eintrag, zum Beispiel für
               Teams. Die Erinnerungsmails führen ebenfalls direkt zum Eintrag.</li>
@@ -123,10 +123,9 @@
         </ul>
 
         <h3>Berichte</h3>
-        <p>Managementbericht für Geschäftsleitung und Auditoren (druck- und PDF-fähig), die
-           <strong>Erklärung zur Anwendbarkeit (SoA)</strong> für die ISO-27001-Zertifizierung mit Begründung
-           jedes Ausschlusses und der <strong>Nachweis-Snapshot</strong>: alle Microsoft-365-Signale zum Stichtag
-           in einer Übersicht, exportierbar als CSV.</p>
+        <p><strong>Datenschutzbericht</strong> (druck- und PDF-fähig) mit Betroffenenanfragen, fälligen Prüfungen,
+           Drittlandtransfers und dem Stand der M365-Nachweise, dazu der <strong>Nachweis-Snapshot</strong> aller
+           Microsoft-365-Signale zum Stichtag als CSV. SoA, Risikobericht und C-Level-Report erstellt das RMS.</p>
 
         <h3>Rollen</h3>
         <p>Administratoren pflegen Einstellungen, Listen und Kataloge. Datenschutzbeauftragter, CISO und
@@ -167,7 +166,9 @@
   <script src="js/data.js?v=4241944b"></script>
   <script src="js/ui.js?v=4241944b"></script>
   <script src="js/purview.js?v=4241944b"></script>
+  <script src="js/rms.js?v=4241944b"></script>
   <script src="js/views.js?v=4241944b"></script>
+  <script src="js/nachweise.js?v=4241944b"></script>
   <script src="js/arbeit.js?v=4241944b"></script>
   <script src="js/anfragen.js?v=4241944b"></script>
   <script src="js/demo.js?v=4241944b"></script>

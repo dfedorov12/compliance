@@ -378,3 +378,11 @@ ul.kompakt li { margin: 3px 0; }
 @media print {
   .sammelleiste, .auswahl-zelle, .modal-link, .kopf-suche { display: none !important; }
 }
+
+/* Verweise ins RMS */
+.nav-extern { margin-left: auto; text-decoration: none; opacity: .85; }
+.nav-extern:hover { opacity: 1; }
+a.stat-link { text-decoration: none; color: inherit; transition: border-color .15s; }
+a.stat-link:hover { border-color: var(--azur); }
+.btn-reihe-klein { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+a.btn-ghost-dark, a.btn-primary, a.btn-secondary { text-decoration: none; display: inline-block; }

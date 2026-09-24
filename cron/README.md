@@ -8,12 +8,11 @@ und der Wochenbericht.
 
 | Schritt | Inhalt | Empfänger |
 |---|---|---|
-| 1 | Aufgaben: Erinnerung ab *erinnerungTageVorher*, Eskalation ab *eskalationTageNach* nach Fälligkeit | Verantwortlicher / CISO + Administratoren |
-| 2 | Controls mit fälliger Wiederholungsprüfung (gebündelt je Empfänger) | Verantwortlicher, sonst CISO |
-| 3 | VVT- und AV-Prüfungen sowie Verträge mit Ende in ≤ 60 Tagen | DSB |
-| 4 | Datenpannen: 72-Stunden-Frist unter 48 h, unter 24 h, abgelaufen (Uhrzeit in deutscher Zeit) | DSB, CISO, Administratoren |
-| 5 | Betroffenenanfragen: 7 und 2 Tage vor Fristende, nach Ablauf Eskalation | Bearbeiter + DSB / DSB, CISO, Administratoren |
-| 6 | montags: Wochenbericht mit Kennzahlen, überfälligen Maßnahmen und offenen Anfragen | CISO, DSB, Administratoren |
+| 1 | VVT- und AV-Prüfungen sowie Verträge mit Ende in ≤ 60 Tagen | DSB |
+| 2 | Betroffenenanfragen: 7 und 2 Tage vor Fristende, nach Ablauf Eskalation | Bearbeiter + DSB / DSB, CISO, Administratoren |
+| 3 | montags: Datenschutz-Wochenbericht mit Anfragen, fälligen Prüfungen und TOM | DSB, CISO, Administratoren |
+
+Risiken, Maßnahmen und Vorfälle erinnert der Cron des RMS (`richtlinienmanagementsystem/scripts/erinnerungen.mjs`).
 
 Alle Mails verlinken direkt auf den Eintrag (`?ansicht=…&eintrag=bereich:id`). Fehlt eine Liste
 noch (z. B. `Compliance_Anfragen` direkt nach einem Update), wird der Schritt übersprungen.

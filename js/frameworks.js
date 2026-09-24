@@ -1,27 +1,14 @@
 "use strict";
 
-// Normenkataloge. Sie werden beim ersten Start in die SharePoint-Liste
-// Compliance_Controls importiert und dort weiter gepflegt (Status, Reifegrad,
-// Verantwortliche, Nachweise). Der Katalog hier bleibt die Referenz für Titel,
-// Anforderung und die Zuordnung zu einem M365-/Purview-Signal.
+// Zuordnung der ISO/IEC 27001:2022-Anhang-A-Controls zu Live-Signalen aus
+// Microsoft 365. Die Normen selbst, die SoA und den Umsetzungsstand führt das
+// RMS (rms.dihag.de, js/normen.js und js/soa.js dort); das Cockpit liefert dazu
+// die M365-Nachweise. Titel und Anforderung dienen nur der Anzeige.
 //
-// m365: Schlüssel eines Live-Signals aus Microsoft 365 (siehe purview.js →
-// CC_SIGNALE). Damit kann die App zu einem Control automatisch einen Nachweis
-// ziehen („Auto-Nachweis"), z. B. die aktiven DLP-Richtlinien für A.8.12.
+// m365: Schlüssel eines Signals in purview.js (CC_SIGNALE). Controls ohne
+// Signal stehen hier trotzdem, damit die Nachweisansicht alle 93 zeigen kann.
 
-const CC_FRAMEWORKS = {
-
-  ISO27001: {
-    label: "ISO/IEC 27001:2022 – Anhang A",
-    kurz: "ISO 27001",
-    quelle: "ISO/IEC 27001:2022, Anhang A (93 Maßnahmen)",
-    kategorien: {
-      "A.5": "Organisatorische Maßnahmen",
-      "A.6": "Personenbezogene Maßnahmen",
-      "A.7": "Physische Maßnahmen",
-      "A.8": "Technologische Maßnahmen"
-    },
-    controls: [
+const CC_ANNEX_A = [
       { id: "A.5.1",  titel: "Informationssicherheitsrichtlinien", anforderung: "Richtlinien zur Informationssicherheit sind definiert, von der Leitung genehmigt, veröffentlicht und werden regelmäßig überprüft.", m365: "rms" },
       { id: "A.5.2",  titel: "Rollen und Verantwortlichkeiten der Informationssicherheit", anforderung: "Sicherheitsrollen sind festgelegt und zugewiesen." },
       { id: "A.5.3",  titel: "Aufgabentrennung", anforderung: "Widerstreitende Aufgaben und Verantwortungsbereiche sind getrennt.", m365: "rollen" },
@@ -45,10 +32,10 @@ const CC_FRAMEWORKS = {
       { id: "A.5.21", titel: "Sicherheit in der IKT-Lieferkette", anforderung: "Risiken der IKT-Lieferkette werden gesteuert." },
       { id: "A.5.22", titel: "Überwachung und Änderung von Lieferantenleistungen", anforderung: "Leistungen der Lieferanten werden überwacht und überprüft." },
       { id: "A.5.23", titel: "Informationssicherheit bei Cloud-Diensten", anforderung: "Beschaffung, Nutzung und Beendigung von Cloud-Diensten sind geregelt.", m365: "secureScore" },
-      { id: "A.5.24", titel: "Planung und Vorbereitung des Vorfallmanagements", anforderung: "Prozesse, Rollen und Verantwortlichkeiten für Sicherheitsvorfälle sind festgelegt.", m365: "vorfaelle" },
+      { id: "A.5.24", titel: "Planung und Vorbereitung des Vorfallmanagements", anforderung: "Prozesse, Rollen und Verantwortlichkeiten für Sicherheitsvorfälle sind festgelegt." },
       { id: "A.5.25", titel: "Beurteilung und Entscheidung über Sicherheitsereignisse", anforderung: "Ereignisse werden bewertet und als Vorfall eingestuft oder verworfen.", m365: "alerts" },
       { id: "A.5.26", titel: "Reaktion auf Informationssicherheitsvorfälle", anforderung: "Auf Vorfälle wird gemäß dokumentierter Verfahren reagiert.", m365: "incidents" },
-      { id: "A.5.27", titel: "Lernen aus Informationssicherheitsvorfällen", anforderung: "Erkenntnisse aus Vorfällen fließen in Maßnahmen ein.", m365: "vorfaelle" },
+      { id: "A.5.27", titel: "Lernen aus Informationssicherheitsvorfällen", anforderung: "Erkenntnisse aus Vorfällen fließen in Maßnahmen ein." },
       { id: "A.5.28", titel: "Sammeln von Beweismaterial", anforderung: "Verfahren zur Identifizierung und Sicherung von Beweismitteln bestehen.", m365: "ediscovery" },
       { id: "A.5.29", titel: "Informationssicherheit bei Störungen", anforderung: "Sicherheit wird auch während Störungen aufrechterhalten." },
       { id: "A.5.30", titel: "IKT-Bereitschaft für Business Continuity", anforderung: "IKT-Bereitschaft ist geplant, umgesetzt und getestet." },
@@ -67,7 +54,7 @@ const CC_FRAMEWORKS = {
       { id: "A.6.5",  titel: "Pflichten bei Beendigung oder Wechsel", anforderung: "Fortbestehende Pflichten sind festgelegt und werden durchgesetzt." },
       { id: "A.6.6",  titel: "Vertraulichkeitsvereinbarungen", anforderung: "NDA/Vertraulichkeitsvereinbarungen sind identifiziert und dokumentiert." },
       { id: "A.6.7",  titel: "Arbeiten aus der Ferne", anforderung: "Für mobiles Arbeiten sind Sicherheitsmaßnahmen umgesetzt.", m365: "ca" },
-      { id: "A.6.8",  titel: "Meldung von Sicherheitsereignissen", anforderung: "Beschäftigte können Ereignisse zeitnah über einen definierten Weg melden.", m365: "vorfaelle" },
+      { id: "A.6.8",  titel: "Meldung von Sicherheitsereignissen", anforderung: "Beschäftigte können Ereignisse zeitnah über einen definierten Weg melden." },
 
       { id: "A.7.1",  titel: "Physische Sicherheitszonen", anforderung: "Sicherheitsbereiche sind definiert und geschützt." },
       { id: "A.7.2",  titel: "Physischer Zutritt", anforderung: "Zutritt zu Sicherheitsbereichen wird gesteuert." },
@@ -118,99 +105,20 @@ const CC_FRAMEWORKS = {
       { id: "A.8.32", titel: "Änderungsmanagement", anforderung: "Änderungen unterliegen einem Änderungsverfahren." },
       { id: "A.8.33", titel: "Testinformationen", anforderung: "Testdaten werden ausgewählt, geschützt und verwaltet." },
       { id: "A.8.34", titel: "Schutz von Systemen während Audit-Tests", anforderung: "Audit-Tests an Produktivsystemen werden geplant und abgestimmt.", m365: "audit" }
-    ]
-  },
-
-  NIS2: {
-    label: "NIS2 / BSIG – Risikomanagementmaßnahmen",
-    kurz: "NIS2",
-    quelle: "Art. 21 Abs. 2 RL (EU) 2022/2555, umgesetzt im BSIG",
-    kategorien: { "N.1": "Risikomanagementmaßnahmen", "N.2": "Governance & Meldepflichten" },
-    controls: [
-      { id: "N.1.a", titel: "Risikoanalyse und Sicherheit für Informationssysteme", anforderung: "Konzepte für Risikoanalyse und Sicherheit der Informationssysteme liegen vor.", m365: "risiken" },
-      { id: "N.1.b", titel: "Bewältigung von Sicherheitsvorfällen", anforderung: "Prozesse zur Erkennung, Bewältigung und Nachbereitung von Vorfällen bestehen.", m365: "incidents" },
-      { id: "N.1.c", titel: "Aufrechterhaltung des Betriebs / Krisenmanagement", anforderung: "Backup-Management, Notfallwiederherstellung und Krisenmanagement sind etabliert." },
-      { id: "N.1.d", titel: "Sicherheit der Lieferkette", anforderung: "Sicherheitsaspekte in Beziehungen zu Anbietern und Dienstleistern sind geregelt.", m365: "avv" },
-      { id: "N.1.e", titel: "Sicherheit bei Erwerb, Entwicklung und Wartung", anforderung: "Schwachstellenmanagement und Offenlegung sind Teil des Lebenszyklus.", m365: "secureScore" },
-      { id: "N.1.f", titel: "Bewertung der Wirksamkeit der Maßnahmen", anforderung: "Konzepte zur Bewertung der Wirksamkeit der Risikomanagementmaßnahmen bestehen." },
-      { id: "N.1.g", titel: "Cyberhygiene und Schulungen", anforderung: "Grundlegende Cyberhygiene-Praktiken und Schulungen sind umgesetzt.", m365: "rms" },
-      { id: "N.1.h", titel: "Kryptographie und Verschlüsselung", anforderung: "Konzepte für den Einsatz von Kryptographie bestehen.", m365: "labels" },
-      { id: "N.1.i", titel: "Personalsicherheit, Zugriffskontrolle, Anlagenmanagement", anforderung: "Personalsicherheit, Zugriffskontrollkonzepte und Asset-Management sind umgesetzt.", m365: "ca" },
-      { id: "N.1.j", titel: "MFA, gesicherte Kommunikation und Notfallkommunikation", anforderung: "Multi-Faktor-Authentifizierung und gesicherte Kommunikationssysteme sind im Einsatz.", m365: "ca" },
-      { id: "N.2.1", titel: "Billigung und Überwachung durch die Leitung", anforderung: "Die Geschäftsleitung billigt die Maßnahmen, überwacht ihre Umsetzung und wird geschult." },
-      { id: "N.2.2", titel: "Meldepflichten (24 h / 72 h / 1 Monat)", anforderung: "Erhebliche Sicherheitsvorfälle werden fristgerecht an das BSI gemeldet.", m365: "vorfaelle" },
-      { id: "N.2.3", titel: "Registrierung und Nachweispflichten", anforderung: "Registrierung beim BSI und Nachweise über die Umsetzung liegen vor." }
-    ]
-  },
-
-  TISAX: {
-    label: "TISAX / VDA-ISA – Informationssicherheit",
-    kurz: "TISAX",
-    quelle: "VDA ISA Katalog (Kapitelstruktur)",
-    kategorien: { "T.1": "IS-Richtlinien & Organisation", "T.2": "Human Resources", "T.3": "Physische Sicherheit", "T.4": "Identitäts- & Zugriffsmanagement", "T.5": "IT-Sicherheit / Kryptographie", "T.6": "Lieferantenbeziehungen", "T.7": "Compliance & Datenschutz" },
-    controls: [
-      { id: "T.1.1", titel: "Informationssicherheitsmanagementsystem", anforderung: "Ein ISMS mit Geltungsbereich, Zielen und Leitungsverantwortung ist etabliert." },
-      { id: "T.1.2", titel: "Organisation der Informationssicherheit", anforderung: "Rollen, Verantwortlichkeiten und Ressourcen sind festgelegt." },
-      { id: "T.1.3", titel: "Risikomanagement", anforderung: "Ein dokumentiertes Verfahren zur Risikoidentifikation und -behandlung besteht.", m365: "risiken" },
-      { id: "T.1.4", titel: "Asset-Management und Klassifizierung", anforderung: "Informationswerte sind erfasst, klassifiziert und einem Eigentümer zugeordnet.", m365: "labels" },
-      { id: "T.2.1", titel: "Qualifikation und Sensibilisierung", anforderung: "Beschäftigte werden qualifiziert und regelmäßig sensibilisiert.", m365: "rms" },
-      { id: "T.2.2", titel: "Vertraulichkeitsverpflichtung", anforderung: "Beschäftigte und Dritte sind zur Vertraulichkeit verpflichtet." },
-      { id: "T.2.3", titel: "Mobiles Arbeiten und Teleworking", anforderung: "Regelungen für mobiles Arbeiten sind umgesetzt.", m365: "ca" },
-      { id: "T.3.1", titel: "Sicherheitszonen und Zutrittskontrolle", anforderung: "Sicherheitszonen sind definiert, Zutritt wird kontrolliert und protokolliert." },
-      { id: "T.3.2", titel: "Schutz vor externen Bedrohungen", anforderung: "Schutz vor Feuer, Wasser und weiteren Umgebungseinflüssen ist umgesetzt." },
-      { id: "T.4.1", titel: "Benutzerverwaltung", anforderung: "Anlegen, Ändern und Entziehen von Benutzerkonten ist geregelt.", m365: "benutzer" },
-      { id: "T.4.2", titel: "Authentifizierungsmechanismen", anforderung: "Angemessene Authentifizierung (MFA, Passwortrichtlinie) ist umgesetzt.", m365: "ca" },
-      { id: "T.4.3", titel: "Privilegierte Konten", anforderung: "Administrative Konten sind gesondert geschützt und werden überwacht.", m365: "rollen" },
-      { id: "T.5.1", titel: "Schadsoftwareschutz", anforderung: "Schutzmaßnahmen gegen Schadsoftware sind implementiert.", m365: "alerts" },
-      { id: "T.5.2", titel: "Protokollierung und Überwachung", anforderung: "Sicherheitsrelevante Ereignisse werden protokolliert und ausgewertet.", m365: "audit" },
-      { id: "T.5.3", titel: "Datensicherung", anforderung: "Datensicherungen sind konzipiert, durchgeführt und getestet." },
-      { id: "T.5.4", titel: "Kryptographische Verfahren", anforderung: "Verschlüsselung und Schlüsselmanagement sind geregelt.", m365: "labels" },
-      { id: "T.5.5", titel: "Netzwerksicherheit und Segmentierung", anforderung: "Netzwerke sind segmentiert und abgesichert." },
-      { id: "T.5.6", titel: "Schwachstellen- und Patchmanagement", anforderung: "Schwachstellen werden erkannt und zeitnah behoben.", m365: "secureScore" },
-      { id: "T.6.1", titel: "Anforderungen an Lieferanten", anforderung: "Sicherheitsanforderungen an Lieferanten sind vereinbart und werden überprüft.", m365: "avv" },
-      { id: "T.6.2", titel: "Cloud-Nutzung", anforderung: "Der Einsatz von Cloud-Diensten ist bewertet und geregelt.", m365: "secureScore" },
-      { id: "T.7.1", titel: "Einhaltung gesetzlicher Anforderungen", anforderung: "Relevante gesetzliche und vertragliche Anforderungen sind identifiziert." },
-      { id: "T.7.2", titel: "Datenschutz (DSGVO)", anforderung: "Verarbeitungstätigkeiten sind dokumentiert, TOM sind umgesetzt.", m365: "vvt" },
-      { id: "T.7.3", titel: "Prototypenschutz (falls anwendbar)", anforderung: "Besondere Anforderungen an den Schutz von Prototypen sind erfüllt." }
-    ]
-  },
-
-  DSGVO: {
-    label: "DSGVO – Rechenschaftspflichten",
-    kurz: "DSGVO",
-    quelle: "VO (EU) 2016/679",
-    kategorien: { "D.1": "Dokumentation", "D.2": "Betroffenenrechte", "D.3": "Sicherheit & Meldung" },
-    controls: [
-      { id: "D.1.1", titel: "Verzeichnis von Verarbeitungstätigkeiten (Art. 30)", anforderung: "Ein vollständiges, aktuelles VVT liegt vor.", m365: "vvt" },
-      { id: "D.1.2", titel: "Rechtsgrundlagen je Verarbeitung (Art. 6)", anforderung: "Für jede Verarbeitung ist eine Rechtsgrundlage dokumentiert.", m365: "vvt" },
-      { id: "D.1.3", titel: "Auftragsverarbeitungsverträge (Art. 28)", anforderung: "Mit allen Auftragsverarbeitern bestehen AV-Verträge.", m365: "avv" },
-      { id: "D.1.4", titel: "Drittlandtransfers (Art. 44 ff.)", anforderung: "Transfers in Drittländer sind durch geeignete Garantien abgesichert.", m365: "avv" },
-      { id: "D.1.5", titel: "Datenschutz-Folgenabschätzung (Art. 35)", anforderung: "Für risikoreiche Verarbeitungen liegt eine DSFA vor.", m365: "vvt" },
-      { id: "D.1.6", titel: "Löschkonzept / Speicherbegrenzung (Art. 5)", anforderung: "Löschfristen sind definiert und technisch umgesetzt.", m365: "retention" },
-      { id: "D.2.1", titel: "Auskunftsrecht (Art. 15)", anforderung: "Betroffenenanfragen werden fristgerecht (1 Monat) beantwortet.", m365: "anfragen" },
-      { id: "D.2.2", titel: "Löschung und Berichtigung (Art. 16, 17)", anforderung: "Prozesse zur Berichtigung und Löschung bestehen.", m365: "anfragen" },
-      { id: "D.2.3", titel: "Informationspflichten (Art. 13, 14)", anforderung: "Betroffene werden transparent informiert." },
-      { id: "D.3.1", titel: "Technische und organisatorische Maßnahmen (Art. 32)", anforderung: "TOM sind dokumentiert, umgesetzt und werden überprüft.", m365: "tom" },
-      { id: "D.3.2", titel: "Meldung von Datenpannen (Art. 33)", anforderung: "Verletzungen werden binnen 72 Stunden an die Aufsichtsbehörde gemeldet.", m365: "vorfaelle" },
-      { id: "D.3.3", titel: "Benachrichtigung Betroffener (Art. 34)", anforderung: "Bei hohem Risiko werden Betroffene unverzüglich benachrichtigt.", m365: "vorfaelle" },
-      { id: "D.3.4", titel: "Datenschutzbeauftragter (Art. 37)", anforderung: "Ein DSB ist benannt, gemeldet und eingebunden." }
-    ]
-  }
-};
-
-// Reifegrade (angelehnt an CMMI) – Grundlage für den Reifegrad-Report.
-const CC_REIFEGRADE = [
-  { wert: 0, label: "0 – nicht vorhanden" },
-  { wert: 1, label: "1 – initial / ad hoc" },
-  { wert: 2, label: "2 – wiederholbar" },
-  { wert: 3, label: "3 – definiert" },
-  { wert: 4, label: "4 – gesteuert / gemessen" },
-  { wert: 5, label: "5 – optimierend" }
 ];
 
-const CC_CONTROL_STATUS = ["Offen", "In Umsetzung", "Umgesetzt", "Nicht anwendbar"];
+const CC_ANNEX_KATEGORIEN = {
+  "A.5": "Organisatorische Maßnahmen",
+  "A.6": "Personenbezogene Maßnahmen",
+  "A.7": "Physische Maßnahmen",
+  "A.8": "Technologische Maßnahmen"
+};
 
-// Kurztexte zu den M365-Signalen (für die Control-Detailansicht).
+function annexControl(id) {
+  return CC_ANNEX_A.find(c => c.id === id) || null;
+}
+
+// Kurztexte zu den M365-Signalen (für die Nachweisansicht).
 const CC_SIGNAL_LABELS = {
   labels:         "Vertraulichkeitsbezeichnungen (Purview)",
   retention:      "Aufbewahrungsbezeichnungen (Purview)",
@@ -229,8 +137,6 @@ const CC_SIGNAL_LABELS = {
   vvt:            "Verzeichnis von Verarbeitungstätigkeiten (App)",
   tom:            "TOM-Katalog (App)",
   avv:            "AV-Verträge (App)",
-  vorfaelle:      "Vorfall-/Datenpannen-Register (App)",
-  risiken:        "Risikoregister (App)",
   rms:            "Richtlinienmanagementsystem (DIHAG)",
   anfragen:       "Register Betroffenenanfragen (App)"
 };

@@ -113,33 +113,6 @@ const Store = {
     return bericht;
   },
 
-  // Importiert fehlende Controls der gewählten Frameworks in die Control-Liste.
-  async importFrameworks(keys, protokoll = () => {}) {
-    const vorhanden = new Set((await this.load("controls", true)).map(c => c.Title));
-    let neu = 0;
-    for (const key of keys) {
-      const fw = CC_FRAMEWORKS[key];
-      if (!fw) continue;
-      for (const ctl of fw.controls) {
-        if (vorhanden.has(ctl.id)) continue;
-        await spCreate(CC_LISTS.controls, {
-          Title: ctl.id,
-          Framework: key,
-          Kategorie: ctl.id.split(".").slice(0, 2).join("."),
-          Bezeichnung: ctl.titel,
-          Anforderung: ctl.anforderung || "",
-          Status: "Offen",
-          Reifegrad: "0 – nicht vorhanden",
-          M365Signal: ctl.m365 || ""
-        });
-        neu++;
-        protokoll(`${neu} Controls importiert …`);
-      }
-    }
-    this.invalidate("controls");
-    return neu;
-  },
-
   // ---------------------------------------------------------- Konfiguration ---
 
   async loadKonfig() {
@@ -149,8 +122,6 @@ const Store = {
       dsbEmail: "",
       cisoEmail: "",
       mailSender: "",
-      frameworks: ["ISO27001", "DSGVO"],
-      pruefzyklusMonate: 12,
       erinnerungTageVorher: 14,
       eskalationTageNach: 7,
       erinnerungenAktiv: true,
@@ -234,14 +205,6 @@ function denormalisiere(entity, werte) {
 
 // -------------------------------------------------------------- Ableitung ---
 
-// Risikowert und Restrisiko berechnen (wird beim Speichern gesetzt).
-function berechneRisiko(werte) {
-  const e = Number(werte.Eintritt) || 0;
-  const a = Number(werte.Auswirkung) || 0;
-  werte.Bewertung = e * a;
-  return werte;
-}
-
 // Antwortfrist einer Betroffenenanfrage: ein Monat ab Eingang, bei Verlängerung
 // drei Monate (Art. 12 Abs. 3 DSGVO).
 function berechneAnfrage(werte) {
@@ -264,28 +227,6 @@ function addiereMonate(iso, monate) {
   return ende.toISOString().slice(0, 10);
 }
 
-function risikoStufe(wert) {
-  const w = Number(wert) || 0;
-  if (w >= 15) return { klasse: "st-red", label: "Hoch" };
-  if (w >= 8)  return { klasse: "st-yellow", label: "Mittel" };
-  if (w > 0)   return { klasse: "st-green", label: "Gering" };
-  return { klasse: "st-gray", label: "–" };
-}
-
-// Reifegrad als Zahl aus dem Label „3 – definiert".
-function reifegradWert(label) {
-  const m = String(label || "").match(/^\s*(\d)/);
-  return m ? Number(m[1]) : 0;
-}
-
-// Umsetzungsgrad eines Control-Bestands in Prozent (Nicht anwendbar zählt nicht mit).
-function umsetzungsgrad(controls) {
-  const relevant = controls.filter(c => c.Status !== "Nicht anwendbar");
-  if (!relevant.length) return 0;
-  const punkte = relevant.reduce((s, c) => s + (c.Status === "Umgesetzt" ? 1 : c.Status === "In Umsetzung" ? 0.5 : 0), 0);
-  return Math.round(punkte / relevant.length * 100);
-}
-
 function istUeberfaellig(datum) {
   if (!datum) return false;
   return new Date(datum + "T23:59:59") < new Date();
@@ -294,12 +235,4 @@ function istUeberfaellig(datum) {
 function tageBis(datum) {
   if (!datum) return null;
   return Math.ceil((new Date(datum + "T12:00:00") - new Date()) / 86400000);
-}
-
-// 72-Stunden-Meldefrist einer Datenpanne (Art. 33 DSGVO).
-function meldefrist(vorfall) {
-  if (!vorfall.Entdeckt) return null;
-  const uhr = /^\d{1,2}:\d{2}$/.test(vorfall.EntdecktUhr || "") ? vorfall.EntdecktUhr : "00:00";
-  const start = new Date(`${vorfall.Entdeckt}T${uhr.padStart(5, "0")}:00`);
-  return new Date(start.getTime() + 72 * 3600 * 1000);
 }
