@@ -12,8 +12,9 @@
     „Anwendungsadministrator" + „Administrator fuer privilegierte Rollen".
 
 .NOTES
-    Benoetigt das Modul Microsoft.Graph:
-        Install-Module Microsoft.Graph -Scope CurrentUser
+    Benoetigt nur das Modul Microsoft.Graph.Authentication (nicht das komplette
+    Microsoft.Graph-Paket). Alle Aufrufe laufen direkt per Invoke-MgGraphRequest.
+        Install-Module Microsoft.Graph.Authentication -Scope CurrentUser
 #>
 
 param(
@@ -21,7 +22,7 @@ param(
     [string]$TenantId = "fdb70646-023a-403b-a4b9-1f474a935123",
     [string[]]$RedirectUris = @(
         "https://dfedorov12.github.io/compliance/",
-        "http://localhost:8080/"
+        "http://localhost:8771/"
     ),
     [switch]$NurLesen   # nur Lese-Berechtigungen anfordern (Read-only-Cockpit)
 )
@@ -62,57 +63,83 @@ Write-Host "Tenant: $TenantId"
 Write-Host "Modus:  $(if ($NurLesen) { 'nur lesend' } else { 'lesen + gezielte Schreibaktionen' })"
 Write-Host ""
 
+if (-not (Get-Command Invoke-MgGraphRequest -ErrorAction SilentlyContinue)) {
+    throw "Modul Microsoft.Graph.Authentication fehlt. Installieren mit: Install-Module Microsoft.Graph.Authentication -Scope CurrentUser"
+}
+
 Connect-MgGraph -TenantId $TenantId -Scopes @(
-    "Application.ReadWrite.All",
-    "DelegatedPermissionGrant.ReadWrite.All",
-    "Directory.ReadWrite.All"
+    "Application.ReadWrite.All",              # App-Registrierung aendern, Dienstprinzipal anlegen
+    "DelegatedPermissionGrant.ReadWrite.All"  # Administratorzustimmung erteilen
 ) -NoWelcome
 
+# Direkter REST-Aufruf gegen Graph v1.0. Dadurch reicht das Modul
+# Microsoft.Graph.Authentication; Get-MgApplication & Co. werden nicht gebraucht.
+function Invoke-Graph([string]$Methode, [string]$Pfad, $Body = $null) {
+    $param = @{
+        Method     = $Methode
+        Uri        = "https://graph.microsoft.com/v1.0$Pfad"
+        OutputType = "PSObject"
+    }
+    if ($null -ne $Body) {
+        $param.Body        = ($Body | ConvertTo-Json -Depth 10)
+        $param.ContentType = "application/json"
+    }
+    Invoke-MgGraphRequest @param
+}
+
 # --- App und Graph-Dienstprinzipal ermitteln -------------------------------
-$app = Get-MgApplication -Filter "appId eq '$ClientId'"
+$app = (Invoke-Graph GET "/applications?`$filter=appId eq '$ClientId'").value | Select-Object -First 1
 if (-not $app) { throw "App-Registrierung $ClientId nicht gefunden." }
 
-$graphSp = Get-MgServicePrincipal -Filter "appId eq '$GraphAppId'"
+$graphSp = (Invoke-Graph GET "/servicePrincipals?`$filter=appId eq '$GraphAppId'&`$select=id,oauth2PermissionScopes").value |
+           Select-Object -First 1
 $scopeMap = @{}
-foreach ($s in $graphSp.Oauth2PermissionScopes) { $scopeMap[$s.Value] = $s.Id }
+foreach ($s in $graphSp.oauth2PermissionScopes) { $scopeMap[$s.value] = $s.id }
 
 $unbekannt = $Scopes | Where-Object { -not $scopeMap.ContainsKey($_) }
 if ($unbekannt) { throw "Unbekannte Graph-Berechtigungen: $($unbekannt -join ', ')" }
 
 # --- 1. Redirect-URIs (SPA) ------------------------------------------------
 $vorhanden = @()
-if ($app.Spa -and $app.Spa.RedirectUris) { $vorhanden = $app.Spa.RedirectUris }
-$neueUris = ($vorhanden + $RedirectUris) | Select-Object -Unique
-Update-MgApplication -ApplicationId $app.Id -Spa @{ redirectUris = $neueUris }
+if ($app.spa -and $app.spa.redirectUris) { $vorhanden = @($app.spa.redirectUris) }
+$neueUris = @(($vorhanden + $RedirectUris) | Select-Object -Unique)
+Invoke-Graph PATCH "/applications/$($app.id)" @{ spa = @{ redirectUris = $neueUris } } | Out-Null
 Write-Host "[1/3] SPA-Redirect-URIs gesetzt:" -ForegroundColor Green
 $neueUris | ForEach-Object { Write-Host "      $_" }
 
 # --- 2. Benoetigte Berechtigungen eintragen --------------------------------
-$resourceAccess = $Scopes | ForEach-Object { @{ id = $scopeMap[$_]; type = "Scope" } }
-Update-MgApplication -ApplicationId $app.Id -RequiredResourceAccess @(
-    @{ resourceAppId = $GraphAppId; resourceAccess = $resourceAccess }
-)
-Write-Host "[2/3] $($Scopes.Count) delegierte Berechtigungen eingetragen." -ForegroundColor Green
+# Eintraege fuer andere APIs und etwaige Graph-Anwendungsrollen bleiben erhalten,
+# ersetzt werden nur die delegierten Graph-Berechtigungen.
+$andereApis  = @($app.requiredResourceAccess | Where-Object { $_.resourceAppId -ne $GraphAppId })
+$graphAlt    = $app.requiredResourceAccess | Where-Object { $_.resourceAppId -eq $GraphAppId } | Select-Object -First 1
+$graphRollen = @()
+if ($graphAlt) { $graphRollen = @($graphAlt.resourceAccess | Where-Object { $_.type -eq "Role" }) }
+
+$delegiert = @($Scopes | Sort-Object -Unique | ForEach-Object { @{ id = $scopeMap[$_]; type = "Scope" } })
+$graphEintrag = @{ resourceAppId = $GraphAppId; resourceAccess = @($delegiert + $graphRollen) }
+
+Invoke-Graph PATCH "/applications/$($app.id)" @{ requiredResourceAccess = @($andereApis + $graphEintrag) } | Out-Null
+Write-Host "[2/3] $($delegiert.Count) delegierte Berechtigungen eingetragen." -ForegroundColor Green
 
 # --- 3. Administratorzustimmung fuer den Mandanten -------------------------
-$sp = Get-MgServicePrincipal -Filter "appId eq '$ClientId'"
+$sp = (Invoke-Graph GET "/servicePrincipals?`$filter=appId eq '$ClientId'").value | Select-Object -First 1
 if (-not $sp) {
-    $sp = New-MgServicePrincipal -AppId $ClientId
+    $sp = Invoke-Graph POST "/servicePrincipals" @{ appId = $ClientId }
     Write-Host "      Dienstprinzipal angelegt."
     Start-Sleep -Seconds 5
 }
 
-$grant = Get-MgOauth2PermissionGrant -Filter "clientId eq '$($sp.Id)' and consentType eq 'AllPrincipals'" |
-         Where-Object { $_.ResourceId -eq $graphSp.Id } | Select-Object -First 1
+$grant = (Invoke-Graph GET "/oauth2PermissionGrants?`$filter=clientId eq '$($sp.id)' and consentType eq 'AllPrincipals'").value |
+         Where-Object { $_.resourceId -eq $graphSp.id } | Select-Object -First 1
 $scopeString = ($Scopes | Sort-Object -Unique) -join " "
 
 if ($grant) {
-    Update-MgOauth2PermissionGrant -OAuth2PermissionGrantId $grant.Id -Scope $scopeString
+    Invoke-Graph PATCH "/oauth2PermissionGrants/$($grant.id)" @{ scope = $scopeString } | Out-Null
 } else {
-    New-MgOauth2PermissionGrant -BodyParameter @{
-        clientId    = $sp.Id
+    Invoke-Graph POST "/oauth2PermissionGrants" @{
+        clientId    = $sp.id
         consentType = "AllPrincipals"
-        resourceId  = $graphSp.Id
+        resourceId  = $graphSp.id
         scope       = $scopeString
     } | Out-Null
 }
