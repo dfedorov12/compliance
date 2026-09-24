@@ -28,14 +28,20 @@ function zeigeAnsicht(key) {
     ziel.innerHTML = ladeBox();
     Promise.resolve(render(ziel)).catch(e => { ziel.innerHTML = fehlerBox(e, Ansichten[key].titel); });
   }
-  // Vorhandene Parameter (z. B. ?demo=1) erhalten.
+  // Vorhandene Parameter (z. B. ?demo=1) erhalten, einen geöffneten Direktlink nicht.
   const params = new URLSearchParams(location.search);
   params.set("ansicht", key);
+  params.delete("eintrag");
   history.replaceState(null, "", "?" + params.toString());
 }
 
 async function start() {
   const ladeText = document.getElementById("loadingText");
+  // Direktlinks (?ansicht=…&eintrag=…) überleben den Umweg über die Microsoft-
+  // Anmeldung nicht, weil die Redirect-URI keine Parameter trägt. Deshalb vorher merken.
+  try {
+    if (/[?&](ansicht|eintrag)=/.test(location.search)) sessionStorage.setItem("cc_deeplink", location.search);
+  } catch (e) { /* ohne Sitzungsspeicher geht nur der Link ohne Anmeldung */ }
   try {
     const konto = await ensureLogin();
     if (!konto) return;                       // Login-Redirect läuft
@@ -70,8 +76,25 @@ async function start() {
       toast("Erstinstallation: Bitte unter Einstellungen die Listen anlegen und Administratoren eintragen.", 9000);
     }
 
-    const start = new URLSearchParams(location.search).get("ansicht");
-    zeigeAnsicht(start || "dashboard");
+    document.getElementById("kopfSuche").hidden = false;
+
+    let gemerkt = null;
+    try { gemerkt = sessionStorage.getItem("cc_deeplink"); sessionStorage.removeItem("cc_deeplink"); } catch (e) { /* egal */ }
+    const params = new URLSearchParams(/[?&](ansicht|eintrag)=/.test(location.search) ? location.search : (gemerkt || ""));
+    const eintrag = params.get("eintrag");
+    let ansicht = params.get("ansicht");
+    let ziel = null;
+    if (eintrag && eintrag.includes(":")) {
+      const [entity, id] = eintrag.split(":");
+      const ort = CC_ORT[entity];
+      if (ort) {
+        ansicht = ansicht || ort.ansicht;
+        if (ort.tab) _tabWunsch[ort.ansicht] = ort.tab;
+        ziel = { entity, id };
+      }
+    }
+    zeigeAnsicht(ansicht || "dashboard");
+    if (ziel) oeffneEintrag(ziel.entity, ziel.id);
   } catch (e) {
     ladeText.innerHTML = fehlerBox(e, "Start") +
       `<p class="hint">Prüfen Sie, ob die SharePoint-Site <code>${esc(CC_CONFIG.sitePath)}</code> erreichbar ist
@@ -294,6 +317,19 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("detailModal").addEventListener("click", e => {
     if (e.target.id === "detailModal") Dialog.schliesse();
   });
-  document.addEventListener("keydown", e => { if (e.key === "Escape" && Dialog.offen) Dialog.schliesse(); });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && Dialog.offen) { Dialog.schliesse(); return; }
+    // „/“ springt in die globale Suche, solange man nicht gerade in einem Feld tippt.
+    const tippt = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || "");
+    if (e.key === "/" && !tippt && !Dialog.offen) {
+      e.preventDefault();
+      document.getElementById("globalSuche").focus();
+    }
+  });
+  const suche = document.getElementById("globalSuche");
+  suche.addEventListener("keydown", e => {
+    if (e.key === "Enter" && suche.value.trim().length >= 2) { zeigeSuche(suche.value.trim()); suche.blur(); }
+    if (e.key === "Escape") { suche.value = ""; suche.blur(); }
+  });
   start();
 });

@@ -72,7 +72,12 @@ function statusBadge(status) {
     "In Prüfung": "st-yellow", "Erforderlich": "st-yellow", "Entwurf": "st-yellow", "Geplant": "st-yellow",
     "Offen": "st-red", "Hoch": "st-red", "Keine – Risiko": "st-red",
     "Nicht anwendbar": "st-gray", "Verworfen": "st-gray", "Nicht erforderlich": "st-gray",
-    "Akzeptiert": "st-gray", "Geschlossen": "st-gray", "Gekündigt": "st-gray", "Nein": "st-gray"
+    "Akzeptiert": "st-gray", "Geschlossen": "st-gray", "Gekündigt": "st-gray", "Nein": "st-gray",
+    // Betroffenenanfragen
+    "Eingegangen": "st-red", "Identität prüfen": "st-yellow", "Beantwortet": "st-green",
+    "Geprüft": "st-green", "Nicht nachweisbar": "st-red",
+    "Vollständig erfüllt": "st-green", "Teilweise erfüllt": "st-yellow",
+    "Abgelehnt (mit Begründung)": "st-gray", "Keine Daten vorhanden": "st-gray"
   };
   return `<span class="status ${map[status] || "st-gray"}">${esc(status || "–")}</span>`;
 }
@@ -80,12 +85,17 @@ function statusBadge(status) {
 // -------------------------------------------------------------- Tabellen ---
 
 // spalten: [{key, label, render?(row), breite?}]
+// opts.auswahl: Set der markierten ids → zusätzliche Spalte mit Kontrollkästchen.
 function tabelleHtml(zeilen, spalten, opts = {}) {
   if (!zeilen.length) return `<p class="muted">${esc(opts.leer || "Keine Einträge vorhanden.")}</p>`;
-  const kopf = spalten.map(s => `<th>${esc(s.label)}</th>`).join("");
+  const wahl = opts.auswahl;
+  const alleGewaehlt = wahl && zeilen.every(z => wahl.has(z.id));
+  const kopf = (wahl ? `<th class="auswahl-zelle"><input type="checkbox" data-alle title="Alle angezeigten markieren"${alleGewaehlt ? " checked" : ""}></th>` : "") +
+    spalten.map(s => `<th>${esc(s.label)}</th>`).join("");
   const body = zeilen.map((z, i) => {
     const zellen = spalten.map(s => `<td>${s.render ? s.render(z) : esc(z[s.key])}</td>`).join("");
-    return `<tr class="row-click" data-idx="${i}">${zellen}</tr>`;
+    const box = wahl ? `<td class="auswahl-zelle"><input type="checkbox" data-wahl="${i}"${wahl.has(z.id) ? " checked" : ""}></td>` : "";
+    return `<tr class="row-click${wahl && wahl.has(z.id) ? " gewaehlt" : ""}" data-idx="${i}">${box}${zellen}</tr>`;
   }).join("");
   return `<div class="table-scroll"><table class="report-table"><thead><tr>${kopf}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
@@ -109,9 +119,15 @@ function csvExport(dateiname, zeilen, spalten) {
 const Dialog = {
   offen: null,
 
-  zeige({ titel, html, aktionen = [], breit = false }) {
+  zeige({ titel, html, aktionen = [], breit = false, link = null }) {
     const modal = document.getElementById("detailModal");
     modal.querySelector(".modal-content").classList.toggle("modal-wide", !!breit);
+    // Direktlink auf den Datensatz (z. B. für Mails oder Teams).
+    const linkKnopf = document.getElementById("btnModalLink");
+    linkKnopf.hidden = !link;
+    linkKnopf.onclick = () => navigator.clipboard.writeText(link)
+      .then(() => toast("Link kopiert."))
+      .catch(() => prompt("Link zum Kopieren:", link));
     document.getElementById("modalTitle").textContent = titel;
     document.getElementById("modalBody").innerHTML = html;
     const leiste = document.getElementById("modalActions");
@@ -134,6 +150,73 @@ const Dialog = {
   }
 };
 
+// ------------------------------------------------------- Personenauswahl ---
+
+// Füllt einmalig eine <datalist> mit den Personen aus dem Verzeichnis. Alle
+// Personenfelder verweisen darauf; ohne Leserecht bleibt die freie Eingabe.
+let _personenGeladen = null;
+function personenListeLaden() {
+  if (_personenGeladen) return _personenGeladen;
+  let liste = document.getElementById("cc-personen");
+  if (!liste) {
+    liste = document.createElement("datalist");
+    liste.id = "cc-personen";
+    document.body.appendChild(liste);
+  }
+  _personenGeladen = Store.personen()
+    .then(p => { liste.innerHTML = p.map(x => `<option value="${esc(x.mail)}">${esc(x.name)}</option>`).join(""); })
+    .catch(() => { /* freie Eingabe genügt */ });
+  return _personenGeladen;
+}
+
+// ----------------------------------------------------- Gespeicherte Filter ---
+
+function filterLesen(schluessel) {
+  try { return JSON.parse(localStorage.getItem("cc-filter-" + schluessel) || "{}"); }
+  catch (e) { return {}; }
+}
+
+function filterSchreiben(schluessel, wert) {
+  try { localStorage.setItem("cc-filter-" + schluessel, JSON.stringify(wert)); }
+  catch (e) { /* ohne Browserspeicher geht es auch */ }
+}
+
+// Führt fn für alle Elemente aus, höchstens `gleichzeitig` Aufrufe parallel.
+async function parallelAbarbeiten(liste, gleichzeitig, fn) {
+  let i = 0;
+  const arbeiter = Array.from({ length: Math.min(gleichzeitig, liste.length) }, async () => {
+    while (i < liste.length) {
+      const element = liste[i++];
+      await fn(element);
+    }
+  });
+  await Promise.all(arbeiter);
+}
+
+// ---------------------------------------------------------------- Editor ---
+
+function eingabeHtml(f, wert) {
+  const ro = f.readonly ? " readonly disabled" : "";
+  if (f.type === "note") {
+    return `<textarea rows="3" data-feld="${f.name}"${ro}>${esc(wert)}</textarea>`;
+  }
+  if (f.type === "select") {
+    const opts = ["", ...f.options()].map(o =>
+      `<option${String(o) === String(wert) ? " selected" : ""}>${esc(o)}</option>`).join("");
+    return `<select data-feld="${f.name}"${ro}>${opts}</select>`;
+  }
+  if (f.type === "number") {
+    return `<input type="number" data-feld="${f.name}" value="${esc(wert)}"${f.min !== undefined ? ` min="${f.min}"` : ""}${f.max !== undefined ? ` max="${f.max}"` : ""}${ro}>`;
+  }
+  if (f.type === "date") {
+    return `<input type="date" data-feld="${f.name}" value="${esc(wert)}"${ro}>`;
+  }
+  if (f.type === "person") {
+    return `<input type="email" data-feld="${f.name}" value="${esc(wert)}" list="cc-personen" autocomplete="off" placeholder="Name oder E-Mail eingeben"${ro}>`;
+  }
+  return `<input type="text" data-feld="${f.name}" value="${esc(wert)}" maxlength="255"${ro}>`;
+}
+
 // Bearbeiten-Dialog aus dem Schema erzeugen.
 function oeffneEditor(entity, datensatz, onGespeichert) {
   const def = CC_SCHEMA[entity];
@@ -142,35 +225,21 @@ function oeffneEditor(entity, datensatz, onGespeichert) {
 
   const felderHtml = def.felder.map(f => {
     const wert = werte[f.name] === undefined ? "" : werte[f.name];
-    const span = f.span2 ? " span2" : "";
-    const ro = f.readonly ? " readonly disabled" : "";
-    let eingabe;
-    if (f.type === "note") {
-      eingabe = `<textarea rows="3" data-feld="${f.name}"${ro}>${esc(wert)}</textarea>`;
-    } else if (f.type === "select") {
-      const opts = ["", ...f.options()].map(o =>
-        `<option${String(o) === String(wert) ? " selected" : ""}>${esc(o)}</option>`).join("");
-      eingabe = `<select data-feld="${f.name}"${ro}>${opts}</select>`;
-    } else if (f.type === "number") {
-      eingabe = `<input type="number" data-feld="${f.name}" value="${esc(wert)}"${f.min !== undefined ? ` min="${f.min}"` : ""}${f.max !== undefined ? ` max="${f.max}"` : ""}${ro}>`;
-    } else if (f.type === "date") {
-      eingabe = `<input type="date" data-feld="${f.name}" value="${esc(wert)}"${ro}>`;
-    } else if (f.type === "person") {
-      eingabe = `<input type="email" data-feld="${f.name}" value="${esc(wert)}" placeholder="vorname.nachname@dihag.com"${ro}>`;
-    } else {
-      eingabe = `<input type="text" data-feld="${f.name}" value="${esc(wert)}" maxlength="255"${ro}>`;
-    }
     const hint = f.hint ? `<span class="feld-hint">${esc(f.hint)}</span>` : "";
-    return `<label class="${span.trim()}">${esc(f.label)}${f.required ? " *" : ""}${eingabe}${hint}</label>`;
+    return `<label class="${f.span2 ? "span2" : ""}">${esc(f.label)}${f.required ? " *" : ""}${eingabeHtml(f, wert)}${hint}</label>`;
   }).join("");
+
+  const leseWerte = modal => {
+    const w = {};
+    modal.querySelectorAll("[data-feld]").forEach(inp => { w[inp.dataset.feld] = inp.value; });
+    return w;
+  };
 
   const aktionen = [
     { label: "Speichern", klasse: "btn-primary", onClick: async (modal) => {
-        const eingaben = modal.querySelectorAll("[data-feld]");
-        const neueWerte = {};
+        const neueWerte = leseWerte(modal);
         let fehlend = null;
-        eingaben.forEach(inp => {
-          neueWerte[inp.dataset.feld] = inp.value;
+        modal.querySelectorAll("[data-feld]").forEach(inp => {
           const feld = def.felder.find(f => f.name === inp.dataset.feld);
           inp.classList.remove("input-error");
           if (feld && feld.required && !String(inp.value).trim()) {
@@ -179,7 +248,7 @@ function oeffneEditor(entity, datensatz, onGespeichert) {
           }
         });
         if (fehlend) { toast("Bitte ausfüllen: " + fehlend); return; }
-        if (entity === "risiken") berechneRisiko(neueWerte);
+        if (def.beimSpeichern) def.beimSpeichern(neueWerte);
         try {
           await Store.save(entity, werte.id, neueWerte);
           Dialog.schliesse();
@@ -206,13 +275,91 @@ function oeffneEditor(entity, datensatz, onGespeichert) {
     titel: neu ? `Neu: ${def.singular}` : `${def.singular} bearbeiten`,
     html: `<div class="form-grid">${felderHtml}</div>`,
     aktionen,
-    breit: true
+    breit: true,
+    link: neu ? null : linkZuEintrag(entity, werte.id)
   });
+  personenListeLaden();
+
+  // Berechnete Felder (Risikowert, Antwortfrist) schon beim Tippen aktualisieren.
+  if (def.beimSpeichern) {
+    const modal = document.getElementById("detailModal");
+    const aktualisiere = () => {
+      const w = def.beimSpeichern(leseWerte(modal));
+      def.felder.filter(f => f.readonly).forEach(f => {
+        const inp = modal.querySelector(`[data-feld="${f.name}"]`);
+        if (inp && w[f.name] !== undefined && w[f.name] !== null) inp.value = w[f.name];
+      });
+    };
+    modal.querySelectorAll("[data-feld]").forEach(inp => { inp.addEventListener("change", aktualisiere); });
+    aktualisiere();
+  }
+}
+
+// -------------------------------------------------------- Sammelbearbeitung ---
+
+// Setzt ausgewählte Felder bei mehreren Datensätzen gleichzeitig. Leere Felder
+// bleiben unverändert; berechnete Felder (Frist, Risikowert) werden je Datensatz
+// neu ermittelt.
+function oeffneSammelbearbeitung(entity, datensaetze, fertig) {
+  const def = CC_SCHEMA[entity];
+  const felder = def.felder.filter(f => !f.readonly && f.name !== "Title" && ["select", "person", "date"].includes(f.type));
+  const html = `<p class="hint">Nur ausgefüllte Felder werden bei allen <strong>${datensaetze.length}</strong>
+      markierten Einträgen überschrieben. Leere Felder bleiben unverändert.</p>
+    <div class="form-grid">${felder.map(f => {
+      let eingabe;
+      if (f.type === "select") {
+        eingabe = `<select data-sammel="${f.name}"><option value="">– unverändert –</option>${
+          f.options().map(o => `<option>${esc(o)}</option>`).join("")}</select>`;
+      } else if (f.type === "date") {
+        eingabe = `<input type="date" data-sammel="${f.name}">`;
+      } else {
+        eingabe = `<input type="email" data-sammel="${f.name}" list="cc-personen" autocomplete="off" placeholder="– unverändert –">`;
+      }
+      return `<label>${esc(f.label)}${eingabe}</label>`;
+    }).join("")}</div>`;
+
+  Dialog.zeige({
+    titel: `${datensaetze.length} × ${def.singular} bearbeiten`,
+    html,
+    breit: true,
+    aktionen: [{ label: "Übernehmen", klasse: "btn-primary", onClick: async modal => {
+      const aenderung = {};
+      modal.querySelectorAll("[data-sammel]").forEach(i => {
+        if (String(i.value).trim()) aenderung[i.dataset.sammel] = i.value.trim();
+      });
+      if (!Object.keys(aenderung).length) { toast("Bitte mindestens ein Feld setzen."); return; }
+      modal.querySelectorAll("#modalActions button").forEach(b => { b.disabled = true; });
+
+      let gespeichert = 0;
+      const fehler = [];
+      await parallelAbarbeiten(datensaetze, 4, async d => {
+        const vorher = { ...d, ...aenderung };
+        const nachher = def.beimSpeichern ? def.beimSpeichern({ ...vorher }) : vorher;
+        const zuSpeichern = { ...aenderung };
+        Object.keys(nachher).forEach(k => { if (nachher[k] !== vorher[k]) zuSpeichern[k] = nachher[k]; });
+        try {
+          await Store.save(entity, d.id, zuSpeichern);
+          gespeichert++;
+          toast(`${gespeichert} von ${datensaetze.length} gespeichert …`);
+        } catch (e) {
+          fehler.push(`${d.Title}: ${e.message}`);
+        }
+      });
+      Dialog.schliesse();
+      toast(fehler.length
+        ? `${gespeichert} gespeichert, ${fehler.length} fehlgeschlagen (${fehler[0]})`
+        : `${gespeichert} Einträge aktualisiert.`, fehler.length ? 9000 : 4000);
+      if (fertig) fertig();
+    } }]
+  });
+  personenListeLaden();
 }
 
 // -------------------------------------------------- Generische Listenansicht ---
 
 // Rendert Filterleiste + Tabelle + „Neu"-Schaltfläche für eine Schema-Entität.
+// Filter und Suchbegriff bleiben je Ansicht im Browser gespeichert; markierte
+// Einträge lassen sich gemeinsam bearbeiten.
 async function renderEntity(container, entity, opts = {}) {
   const def = CC_SCHEMA[entity];
   container.innerHTML = ladeBox();
@@ -226,6 +373,9 @@ async function renderEntity(container, entity, opts = {}) {
     return;
   }
 
+  const neuLaden = () => renderEntity(container, entity, { ...opts, force: true });
+  const badgeFelder = ["Status", "Prioritaet", "Risiko", "MeldungBehoerde", "Garantien", "Identitaet", "Ergebnis"];
+
   const spalten = (opts.spalten || def.tabelle).map(name => {
     const feld = def.felder.find(f => f.name === name) || { name, label: name, type: "text" };
     return {
@@ -234,12 +384,16 @@ async function renderEntity(container, entity, opts = {}) {
       render: row => {
         const v = row[name];
         if (feld.type === "date") {
-          const spaet = istUeberfaellig(v) && !["Erledigt", "Abgeschlossen", "Verworfen"].includes(row.Status);
-          return v ? `<span class="${spaet ? "ueberfaellig" : ""}">${fmtDatum(v)}</span>` : "";
+          if (!v) return "";
+          const offen = !CC_ERLEDIGT.includes(row.Status);
+          const spaet = offen && istUeberfaellig(v);
+          // Bei Fristen zusätzlich die verbleibenden Tage zeigen.
+          const rest = name === "Frist" && offen ? tageBis(v) : null;
+          const zusatz = rest === null ? ""
+            : ` <span class="muted">(${rest < 0 ? Math.abs(rest) + " T. überfällig" : rest === 0 ? "heute" : "noch " + rest + " T."})</span>`;
+          return `<span class="${spaet ? "ueberfaellig" : rest !== null && rest <= 7 ? "warnung" : ""}">${fmtDatum(v)}</span>${zusatz}`;
         }
-        if (name === "Status" || name === "Prioritaet" || name === "Risiko" || name === "MeldungBehoerde" || name === "Garantien") {
-          return statusBadge(v);
-        }
+        if (badgeFelder.includes(name)) return statusBadge(v);
         if (name === "Bewertung") {
           const st = risikoStufe(v);
           return `<span class="status ${st.klasse}">${esc(v || "–")} · ${st.label}</span>`;
@@ -251,53 +405,98 @@ async function renderEntity(container, entity, opts = {}) {
   });
 
   const filterFelder = (opts.filter || def.felder.filter(f => f.type === "select").slice(0, 3).map(f => f.name));
+  const schluessel = opts.filterSchluessel || entity;
+  const gemerkt = filterLesen(schluessel);
+  const auswahl = new Set();
+  const sammel = opts.sammel !== false && !opts.readonly;
 
   container.innerHTML = `
     <div class="filter-bar">
-      <input type="search" id="q_${entity}" placeholder="Suchen …">
+      <input type="search" data-suche placeholder="Suchen …" value="${esc(gemerkt.q || "")}">
       ${filterFelder.map(f => {
         const feld = def.felder.find(x => x.name === f);
         if (!feld || feld.type !== "select") return "";
-        return `<select data-filter="${f}"><option value="">${esc(feld.label)}: alle</option>${
-          feld.options().map(o => `<option>${esc(o)}</option>`).join("")}</select>`;
+        const aktiv = (gemerkt.f || {})[f] || "";
+        return `<select data-filter="${f}"><option value="">${esc(feld.kurz || feld.label)}: alle</option>${
+          feld.options().map(o => `<option${o === aktiv ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
       }).join("")}
       <button class="btn-csv" data-csv>CSV</button>
       ${opts.readonly ? "" : `<button class="btn-primary btn-small" data-neu>+ ${esc(def.singular)}</button>`}
     </div>
+    <div class="sammelleiste" data-sammelleiste hidden>
+      <span data-sammelzahl></span>
+      <button class="btn-primary btn-small" data-sammelbearbeiten>Auswahl bearbeiten</button>
+      <button class="btn-ghost-dark" data-sammelleeren>Auswahl aufheben</button>
+    </div>
     <div data-tabelle></div>
     <p class="muted" data-anzahl></p>`;
 
+  const sucheFeld = container.querySelector("[data-suche]");
+  const leiste = container.querySelector("[data-sammelleiste]");
+
+  const zeigeLeiste = () => {
+    leiste.hidden = auswahl.size === 0;
+    container.querySelector("[data-sammelzahl]").textContent = `${auswahl.size} markiert`;
+  };
+
   const zeigeTabelle = () => {
-    const q = (container.querySelector(`#q_${entity}`).value || "").toLowerCase();
+    const q = (sucheFeld.value || "").toLowerCase();
     const filter = {};
     container.querySelectorAll("[data-filter]").forEach(s => { if (s.value) filter[s.dataset.filter] = s.value; });
+    filterSchreiben(schluessel, { q: sucheFeld.value || "", f: filter });
+
     let gefiltert = items.filter(it => {
       for (const k in filter) if (String(it[k]) !== filter[k]) return false;
       if (!q) return true;
       return def.felder.some(f => String(it[f.name] || "").toLowerCase().includes(q));
     });
     if (opts.vorfilter) gefiltert = gefiltert.filter(opts.vorfilter);
-    container.querySelector("[data-tabelle]").innerHTML = tabelleHtml(gefiltert, spalten, { leer: opts.leer });
-    container.querySelector("[data-anzahl]").textContent = `${gefiltert.length} von ${items.length} Einträgen`;
+
+    container.querySelector("[data-tabelle]").innerHTML =
+      tabelleHtml(gefiltert, spalten, { leer: opts.leer, auswahl: sammel ? auswahl : null });
+    const aktiveFilter = Object.keys(filter).length + (q ? 1 : 0);
+    container.querySelector("[data-anzahl]").textContent =
+      `${gefiltert.length} von ${items.length} Einträgen` + (aktiveFilter ? " (gefiltert)" : "");
+
     container.querySelectorAll("[data-idx]").forEach(tr => {
-      tr.onclick = () => {
+      tr.onclick = ev => {
+        if (ev.target.closest(".auswahl-zelle")) return;
         const rec = gefiltert[Number(tr.dataset.idx)];
         if (opts.onOeffnen) opts.onOeffnen(rec);
-        else oeffneEditor(entity, rec, () => renderEntity(container, entity, { ...opts, force: true }));
+        else oeffneEditor(entity, rec, neuLaden);
       };
     });
+    container.querySelectorAll("[data-wahl]").forEach(box => {
+      box.onchange = () => {
+        const rec = gefiltert[Number(box.dataset.wahl)];
+        if (box.checked) auswahl.add(rec.id); else auswahl.delete(rec.id);
+        box.closest("tr").classList.toggle("gewaehlt", box.checked);
+        zeigeLeiste();
+      };
+    });
+    const alle = container.querySelector("[data-alle]");
+    if (alle) alle.onchange = () => {
+      gefiltert.forEach(r => { if (alle.checked) auswahl.add(r.id); else auswahl.delete(r.id); });
+      zeigeTabelle();
+      zeigeLeiste();
+    };
     container._gefiltert = gefiltert;
   };
 
-  container.querySelector(`#q_${entity}`).oninput = zeigeTabelle;
+  sucheFeld.oninput = zeigeTabelle;
   container.querySelectorAll("[data-filter]").forEach(s => { s.onchange = zeigeTabelle; });
   container.querySelector("[data-csv]").onclick = () =>
     csvExport(`${def.list}_${new Date().toISOString().slice(0, 10)}.csv`,
       container._gefiltert || items,
       def.felder.map(f => ({ key: f.name, label: f.label })));
   const btnNeu = container.querySelector("[data-neu]");
-  if (btnNeu) btnNeu.onclick = () => oeffneEditor(entity, opts.vorlage ? { ...opts.vorlage } : null,
-    () => renderEntity(container, entity, { ...opts, force: true }));
+  if (btnNeu) btnNeu.onclick = () => {
+    const vorlage = typeof opts.vorlage === "function" ? opts.vorlage() : (opts.vorlage ? { ...opts.vorlage } : null);
+    oeffneEditor(entity, vorlage, neuLaden);
+  };
+  container.querySelector("[data-sammelbearbeiten]").onclick = () =>
+    oeffneSammelbearbeitung(entity, items.filter(i => auswahl.has(i.id)), neuLaden);
+  container.querySelector("[data-sammelleeren]").onclick = () => { auswahl.clear(); zeigeTabelle(); zeigeLeiste(); };
 
   zeigeTabelle();
 }

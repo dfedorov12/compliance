@@ -187,8 +187,8 @@ const CC_FRAMEWORKS = {
       { id: "D.1.4", titel: "Drittlandtransfers (Art. 44 ff.)", anforderung: "Transfers in Drittländer sind durch geeignete Garantien abgesichert.", m365: "avv" },
       { id: "D.1.5", titel: "Datenschutz-Folgenabschätzung (Art. 35)", anforderung: "Für risikoreiche Verarbeitungen liegt eine DSFA vor.", m365: "vvt" },
       { id: "D.1.6", titel: "Löschkonzept / Speicherbegrenzung (Art. 5)", anforderung: "Löschfristen sind definiert und technisch umgesetzt.", m365: "retention" },
-      { id: "D.2.1", titel: "Auskunftsrecht (Art. 15)", anforderung: "Betroffenenanfragen werden fristgerecht (1 Monat) beantwortet.", m365: "srr" },
-      { id: "D.2.2", titel: "Löschung und Berichtigung (Art. 16, 17)", anforderung: "Prozesse zur Berichtigung und Löschung bestehen.", m365: "srr" },
+      { id: "D.2.1", titel: "Auskunftsrecht (Art. 15)", anforderung: "Betroffenenanfragen werden fristgerecht (1 Monat) beantwortet.", m365: "anfragen" },
+      { id: "D.2.2", titel: "Löschung und Berichtigung (Art. 16, 17)", anforderung: "Prozesse zur Berichtigung und Löschung bestehen.", m365: "anfragen" },
       { id: "D.2.3", titel: "Informationspflichten (Art. 13, 14)", anforderung: "Betroffene werden transparent informiert." },
       { id: "D.3.1", titel: "Technische und organisatorische Maßnahmen (Art. 32)", anforderung: "TOM sind dokumentiert, umgesetzt und werden überprüft.", m365: "tom" },
       { id: "D.3.2", titel: "Meldung von Datenpannen (Art. 33)", anforderung: "Verletzungen werden binnen 72 Stunden an die Aufsichtsbehörde gemeldet.", m365: "vorfaelle" },
@@ -231,5 +231,6 @@ const CC_SIGNAL_LABELS = {
   avv:            "AV-Verträge (App)",
   vorfaelle:      "Vorfall-/Datenpannen-Register (App)",
   risiken:        "Risikoregister (App)",
-  rms:            "Richtlinienmanagementsystem (DIHAG)"
+  rms:            "Richtlinienmanagementsystem (DIHAG)",
+  anfragen:       "Register Betroffenenanfragen (App)"
 };

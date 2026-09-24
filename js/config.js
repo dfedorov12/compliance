@@ -65,5 +65,6 @@ const CC_LISTS = {
   tom:        "Compliance_TOM",
   avv:        "Compliance_AVV",
   vorfaelle:  "Compliance_Vorfaelle",
+  anfragen:   "Compliance_Anfragen",
   konfig:     "Compliance_Konfiguration"
 };

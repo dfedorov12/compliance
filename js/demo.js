@@ -71,6 +71,29 @@
       { id: neueId(), Title: "Fehlversand einer Gehaltsliste per E-Mail", Art: "Datenpanne (DSGVO Art. 33)", Entdeckt: tage(-1), EntdecktUhr: "09:30", Beschreibung: "Eine Gehaltsübersicht wurde an einen falschen internen Verteiler gesendet.", Ursache: "Autovervollständigung im Mailclient.", Betroffene: "Beschäftigte Verwaltung", Anzahl: 24, Datenkategorien: "Entgeltdaten", Risiko: "Mittel", MeldungBehoerde: "Erforderlich", MeldungAm: "", Benachrichtigung: "Erforderlich", Massnahmen: "Nachricht zurückgerufen, Empfänger zur Löschung aufgefordert.", Verantwortlich: "datenschutz@dihag.com", Status: "In Bearbeitung", Abgeschlossen: "", Erinnert: "" },
       { id: neueId(), Title: "Phishing-Welle mit Zugangsdatenabfrage", Art: "Sicherheitsvorfall", Entdeckt: tage(-20), EntdecktUhr: "07:10", Beschreibung: "Gefälschte Anmeldeseite an 40 Beschäftigte versendet.", Ursache: "Externe Kampagne.", Betroffene: "Beschäftigte", Anzahl: 40, Datenkategorien: "Zugangsdaten", Risiko: "Hoch", MeldungBehoerde: "Nicht erforderlich", MeldungAm: "", Benachrichtigung: "Nicht erforderlich", Massnahmen: "Mails entfernt, Kennwörter zurückgesetzt, Awareness-Hinweis versendet.", Verantwortlich: "fedorov@dihag.com", Status: "Abgeschlossen", Abgeschlossen: tage(-14), Erinnert: "" }
     ],
+    [CC_LISTS.anfragen]: [
+      berechneAnfrage({ id: neueId(), Title: "BA-2026-0904-0915", Art: "Auskunft (Art. 15)", Eingang: tage(-20), Kanal: "E-Mail",
+        PersonName: "K. Bewerberin", PersonKontakt: "k.bewerberin@example.com", Personengruppe: "Bewerber",
+        Anliegen: "Auskunft über alle im Bewerbungsverfahren gespeicherten Daten.", Identitaet: "Geprüft",
+        IdentitaetNachweis: "Abgleich mit Bewerbungsunterlagen", Verlaengert: "Nein", Systeme: "", EdiscoveryFall: "",
+        Ergebnis: "Offen", Begruendung: "", Beantwortet: "", Verantwortlich: "datenschutz@dihag.com", Status: "In Bearbeitung", Erinnert: "" }),
+      berechneAnfrage({ id: neueId(), Title: "BA-2026-0828-1402", Art: "Löschung (Art. 17)", Eingang: tage(-27), Kanal: "Brief",
+        PersonName: "M. Ehemalig", PersonKontakt: "Musterstraße 1, 12345 Musterstadt", Personengruppe: "Ehemalige Beschäftigte",
+        Anliegen: "Löschung aller Daten nach Austritt.", Identitaet: "Offen", IdentitaetNachweis: "", Verlaengert: "Nein",
+        Systeme: "", EdiscoveryFall: "", Ergebnis: "Offen", Begruendung: "", Beantwortet: "",
+        Verantwortlich: "fedorov@dihag.com", Status: "Identität prüfen", Erinnert: "" }),
+      berechneAnfrage({ id: neueId(), Title: "BA-2026-0815-0830", Art: "Auskunft (Art. 15)", Eingang: tage(-40), Kanal: "E-Mail",
+        PersonName: "S. Beschäftigter", PersonKontakt: "s.beschaeftigter@dihag.com", Personengruppe: "Beschäftigte",
+        Anliegen: "Vollständige Auskunft inkl. Kopie aller E-Mails, in denen er genannt wird.", Identitaet: "Geprüft",
+        IdentitaetNachweis: "Persönlich bekannt", Verlaengert: "Ja", VerlaengerungGrund: "des Umfangs der zu sichtenden E-Mail-Postfächer",
+        Systeme: "Personalverwaltung (SAP HCM, Microsoft 365)", EdiscoveryFall: "BA-2026-0815-0830 Betroffenenanfrage (demo)",
+        Ergebnis: "Offen", Begruendung: "", Beantwortet: "", Verantwortlich: "datenschutz@dihag.com", Status: "In Bearbeitung", Erinnert: "" }),
+      berechneAnfrage({ id: neueId(), Title: "BA-2026-0610-1100", Art: "Widerspruch (Art. 21)", Eingang: tage(-105), Kanal: "Webformular",
+        PersonName: "Kunde GmbH, Hr. Beispiel", PersonKontakt: "einkauf@kunde.example", Personengruppe: "Kunden",
+        Anliegen: "Widerspruch gegen Newsletter-Versand.", Identitaet: "Geprüft", IdentitaetNachweis: "Absenderadresse bekannt",
+        Verlaengert: "Nein", Systeme: "CRM", EdiscoveryFall: "", Ergebnis: "Vollständig erfüllt", Begruendung: "",
+        Beantwortet: tage(-98), Verantwortlich: "datenschutz@dihag.com", Status: "Abgeschlossen", Erinnert: "" })
+    ],
     [CC_LISTS.konfig]: [
       { id: neueId(), Title: "Allgemein", WertJson: JSON.stringify({
           adminEmails: ["fedorov@dihag.com"], auditorEmails: [],
@@ -109,6 +132,13 @@
   ];
   uploadNachweis = async () => { toast("Demo-Modus: Datei wurde nicht wirklich hochgeladen."); };
   sendMail = async () => { toast("Demo-Modus: Es wurde keine E-Mail versendet."); };
+  Store.personen = async () => [
+    { name: "Datenschutz DIHAG", mail: "datenschutz@dihag.com" },
+    { name: "Denis Fedorov", mail: "fedorov@dihag.com" },
+    { name: "IT-Service", mail: "it@dihag.com" },
+    { name: "Personalabteilung", mail: "hr@dihag.com" },
+    { name: "Werkschutz", mail: "werkschutz@dihag.com" }
+  ];
 
   // --- Microsoft-365-Signale simulieren ------------------------------------
   const zufall = (n, f) => Array.from({ length: n }, (_, i) => f(i));
@@ -170,7 +200,10 @@
       { id: "e1", name: "Kündigungsstreit Müller ./. DIHAG", beschreibung: "Beweissicherung Postfach", status: "active", erstellt: new Date(Date.now() - 30 * 86400000).toISOString(), geschlossen: "", geschlossenVon: "" },
       { id: "e2", name: "Verdacht Datenabfluss Konstruktion", beschreibung: "", status: "closed", erstellt: new Date(Date.now() - 200 * 86400000).toISOString(), geschlossen: new Date(Date.now() - 120 * 86400000).toISOString(), geschlossenVon: "Denis Fedorov" }
     ],
-    createEdiscoveryCase: async () => { toast("Demo-Modus: Fall wurde nicht angelegt."); },
+    createEdiscoveryCase: async ({ name }) => {
+      toast("Demo-Modus: Der Fall wurde nicht wirklich angelegt.");
+      return { id: "demo-" + Date.now(), displayName: name };
+    },
     subjectRightsRequests: async () => [
       { id: "p1", name: "Auskunftsersuchen Bewerber K.", typ: "export", status: "active", betroffen: "K. Bewerber", email: "bewerber@example.com", erstellt: new Date(Date.now() - 10 * 86400000).toISOString(), faellig: tage(4) + "T12:00:00Z", abgeschlossen: "", regelung: "DSGVO" },
       { id: "p2", name: "Löschersuchen ehem. Mitarbeiter", typ: "delete", status: "closed", betroffen: "M. Ehemalig", email: "", erstellt: new Date(Date.now() - 60 * 86400000).toISOString(), faellig: tage(-25) + "T12:00:00Z", abgeschlossen: new Date(Date.now() - 30 * 86400000).toISOString(), regelung: "DSGVO" }

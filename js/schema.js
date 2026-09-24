@@ -62,6 +62,7 @@ const CC_SCHEMA = {
     titelLabel: "Risiko",
     sort: (a, b) => (Number(b.Bewertung) || 0) - (Number(a.Bewertung) || 0),
     tabelle: ["Title", "Kategorie", "Eintritt", "Auswirkung", "Bewertung", "Strategie", "Status"],
+    beimSpeichern: werte => berechneRisiko(werte),
     felder: [
       { name: "Title",          label: "Risiko", type: "text", span2: true, required: true },
       { name: "Beschreibung",   label: "Beschreibung / Szenario", type: "note", span2: true },
@@ -196,8 +197,64 @@ const CC_SCHEMA = {
       { name: "Abgeschlossen",   label: "Abgeschlossen am", type: "date" },
       { name: "Erinnert",        label: "Letzte Erinnerung", type: "text", readonly: true }
     ]
+  },
+
+  // Betroffenenanfragen nach Art. 15–21 DSGVO. Ersatz für Microsoft Priva, das im
+  // Mandanten nicht bereitgestellt ist. Die Antwortfrist wird beim Speichern aus
+  // Eingang und Verlängerung berechnet (berechneAnfrage in data.js).
+  anfragen: {
+    list: CC_LISTS.anfragen,
+    label: "Betroffenenanfragen",
+    singular: "Betroffenenanfrage",
+    titelLabel: "Vorgang",
+    sort: (a, b) => {
+      // Offene Anfragen nach Frist zuerst, erledigte danach (neueste oben).
+      const offenA = anfrageOffen(a), offenB = anfrageOffen(b);
+      if (offenA !== offenB) return offenA ? -1 : 1;
+      return offenA ? (a.Frist || "9999").localeCompare(b.Frist || "9999")
+                    : (b.Eingang || "").localeCompare(a.Eingang || "");
+    },
+    tabelle: ["Title", "Art", "PersonName", "Eingang", "Frist", "Identitaet", "Status"],
+    beimSpeichern: werte => berechneAnfrage(werte),
+    felder: [
+      { name: "Title",             label: "Vorgangsnummer", kurz: "Vorgang", type: "text", required: true },
+      { name: "Art",               label: "Art der Anfrage", type: "select", required: true, options: () => CC_ANFRAGE_ARTEN },
+      { name: "Eingang",           label: "Eingegangen am", type: "date", required: true, hint: "Startpunkt der Monatsfrist (Art. 12 Abs. 3 DSGVO)" },
+      { name: "Kanal",             label: "Eingangskanal", type: "select", options: () => ["E-Mail", "Brief", "Telefon", "Persönlich", "Webformular", "Über Dritte (z. B. Anwalt)"] },
+      { name: "PersonName",        label: "Betroffene Person", kurz: "Person", type: "text", required: true },
+      { name: "PersonKontakt",     label: "Kontakt (Anschrift oder E-Mail)", type: "text" },
+      { name: "Personengruppe",    label: "Personengruppe", type: "select", options: () => CC_PERSONENGRUPPEN, hint: "bestimmt den vorgeschlagenen Suchumfang aus dem VVT" },
+      { name: "Anliegen",          label: "Anliegen im Wortlaut / Umfang", type: "note", span2: true },
+      { name: "Identitaet",        label: "Identitätsprüfung", kurz: "Identität", type: "select", options: () => ["Offen", "Geprüft", "Nicht nachweisbar"] },
+      { name: "IdentitaetNachweis",label: "Wie wurde die Identität geprüft?", type: "text", hint: "z. B. Abgleich mit Personalakte, Rückruf, Ausweis (geschwärzt)" },
+      { name: "Verlaengert",       label: "Frist verlängert (Art. 12 Abs. 3 S. 2)", type: "select", options: () => ["Nein", "Ja"] },
+      { name: "VerlaengerungGrund",label: "Grund der Verlängerung", type: "note", span2: true, hint: "Komplexität oder Anzahl der Anträge. Die Person ist innerhalb des ersten Monats zu informieren." },
+      { name: "Frist",             label: "Antwortfrist", type: "date", readonly: true, hint: "wird aus Eingang und Verlängerung berechnet" },
+      { name: "Systeme",           label: "Durchsuchte Systeme / Verarbeitungstätigkeiten", type: "note", span2: true },
+      { name: "EdiscoveryFall",    label: "eDiscovery-Fall", type: "text", hint: "wird beim Anlegen aus dem Vorgang gesetzt" },
+      { name: "Ergebnis",          label: "Ergebnis", type: "select", options: () => ["Offen", "Vollständig erfüllt", "Teilweise erfüllt", "Abgelehnt (mit Begründung)", "Keine Daten vorhanden"] },
+      { name: "Begruendung",       label: "Begründung bei Ablehnung oder Einschränkung", type: "note", span2: true },
+      { name: "Beantwortet",       label: "Beantwortet am", type: "date" },
+      { name: "Verantwortlich",    label: "Bearbeitet von (E-Mail)", kurz: "Bearbeiter", type: "person" },
+      { name: "Status",            label: "Status", type: "select", required: true, options: () => CC_ANFRAGE_STATUS },
+      { name: "Erinnert",          label: "Letzte Erinnerung", type: "text", readonly: true }
+    ]
   }
 };
+
+const CC_ANFRAGE_ARTEN = [
+  "Auskunft (Art. 15)", "Berichtigung (Art. 16)", "Löschung (Art. 17)", "Einschränkung (Art. 18)",
+  "Datenübertragbarkeit (Art. 20)", "Widerspruch (Art. 21)", "Widerruf der Einwilligung (Art. 7 Abs. 3)", "Sonstiges"
+];
+const CC_ANFRAGE_STATUS = ["Eingegangen", "Identität prüfen", "In Bearbeitung", "Beantwortet", "Abgeschlossen"];
+const CC_PERSONENGRUPPEN = ["Beschäftigte", "Ehemalige Beschäftigte", "Bewerber", "Kunden", "Lieferanten", "Besucher", "Sonstige"];
+
+// Status, bei denen ein Datensatz als erledigt gilt (keine Frist mehr, kein Arbeitsvorrat).
+const CC_ERLEDIGT = ["Erledigt", "Abgeschlossen", "Verworfen", "Beantwortet", "Geschlossen", "Gekündigt"];
+
+function anfrageOffen(a) {
+  return !["Beantwortet", "Abgeschlossen"].includes(a.Status);
+}
 
 // SharePoint-Spaltentyp je Feldtyp.
 const CC_SP_TYPE = {

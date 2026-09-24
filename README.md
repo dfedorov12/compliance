@@ -10,13 +10,14 @@ Governance-Schicht darüber (ISO 27001, NIS2, TISAX, DSGVO), die Purview nicht a
 
 | Bereich | Inhalt |
 |---|---|
-| **Dashboard** | Umsetzungsgrad, offene/überfällige Aufgaben, hohe Risiken, offene Vorfälle, Live-Kacheln aus M365, Fristen der nächsten 30 Tage |
+| **Dashboard** | Umsetzungsgrad, offene/überfällige Aufgaben, hohe Risiken, offene Vorfälle und Betroffenenanfragen, Live-Kacheln aus M365, **Arbeitsvorrat** mit allen Fristen aus allen Bereichen |
 | **Microsoft 365** | Sicherheits- und DLP-Warnungen (bearbeiten/schließen), Überwachungsprotokoll-Suche, Entra-Verzeichnisprotokoll, Vertraulichkeits- und Aufbewahrungsbezeichnungen (anlegen), eDiscovery-Fälle (anlegen), Betroffenenanfragen, bedingter Zugriff, privilegierte Rollen, Geräte, Secure Score |
 | **Controls** | Kataloge ISO/IEC 27001:2022 (93), NIS2 (13), TISAX (23), DSGVO (13) mit Status, Reifegrad 0–5, Verantwortlichen, Prüfterminen, Nachweisdateien und **Live-Nachweis aus M365** |
 | **Aufgaben** | Maßnahmen mit Verantwortlichem, Frist, Priorität; direkt aus Warnungen, Controls oder Vorfällen erzeugbar |
 | **Risiken** | Risikoregister mit 5×5-Matrix, Strategie, Restrisiko, Control-Bezug |
-| **Datenschutz** | VVT (Art. 30), TOM (Art. 32), Auftragsverarbeiter (Art. 28), Vorfall-/Datenpannenregister mit 72-Stunden-Fristüberwachung und Meldeentwurf nach Art. 33 |
-| **Berichte** | Managementbericht (druck-/PDF-fähig) und Nachweis-Snapshot aller M365-Signale zum Stichtag, jeweils exportierbar |
+| **Datenschutz** | VVT (Art. 30), TOM (Art. 32), Auftragsverarbeiter (Art. 28), **Betroffenenanfragen** (Art. 15–21) mit Fristberechnung, Suchumfang aus dem VVT, eDiscovery-Fall und Antwortentwürfen, Vorfall-/Datenpannenregister mit 72-Stunden-Fristüberwachung und Meldeentwurf nach Art. 33 |
+| **Berichte** | Managementbericht (druck-/PDF-fähig), Erklärung zur Anwendbarkeit (SoA) und Nachweis-Snapshot aller M365-Signale zum Stichtag, jeweils exportierbar |
+| **Bedienung** | Globale Suche (`/`), Sammelbearbeitung, Personenauswahl aus dem Verzeichnis, Direktlinks auf Einträge, gemerkte Filter |
 | **Cron** | Tägliche Erinnerungen, Eskalationen, Fristüberwachung und Wochenbericht über GitHub Actions |
 
 ## Technik
@@ -36,6 +37,8 @@ js/data.js            Cache, CRUD, Provisionierung, Konfiguration, Rollen
 js/ui.js              Tabellen, Filter, CSV, Dialoge, generische Listenansicht
 js/purview.js         Microsoft-365-Abfragen und Signal-Definitionen
 js/views.js           Alle Ansichten
+js/arbeit.js          Arbeitsvorrat, globale Suche, Direktlinks, Nachweisbereich
+js/anfragen.js        Register für Betroffenenanfragen inkl. Antwortentwürfe
 js/demo.js            Demo-Modus (?demo=1) mit Beispieldaten
 js/app.js             Start, Navigation, Einstellungen
 setup-compliance.ps1  Entra-App: Redirect-URIs, Berechtigungen, Admin-Zustimmung

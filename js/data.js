@@ -22,6 +22,43 @@ const Store = {
     return items;
   },
 
+  // Wie load(), liefert aber eine leere Liste, wenn die SharePoint-Liste noch
+  // nicht existiert (404). So bleibt das Dashboard nutzbar, wenn nach einem
+  // Update eine neue Liste hinzukommt; fehlendeListen zeigt den Hinweis an.
+  fehlendeListen: new Set(),
+
+  async loadOderLeer(entity) {
+    try {
+      const items = await this.load(entity);
+      this.fehlendeListen.delete(CC_SCHEMA[entity].list);
+      return items;
+    } catch (e) {
+      if (e.status === 404) {
+        this.fehlendeListen.add(CC_SCHEMA[entity].list);
+        return [];
+      }
+      throw e;
+    }
+  },
+
+  // Alle Datensätze aller Bereiche (für Suche und Arbeitsvorrat).
+  async alle() {
+    const out = {};
+    await Promise.all(Object.keys(CC_SCHEMA).map(async e => { out[e] = await this.loadOderLeer(e); }));
+    return out;
+  },
+
+  // Personen aus dem Verzeichnis für die Auswahlfelder (User.ReadBasic.All).
+  async personen() {
+    if (this._personen) return this._personen;
+    const roh = await graphFetchAll("/users?$select=displayName,mail&$top=999", {}, 3000);
+    this._personen = roh
+      .filter(u => u.mail)
+      .map(u => ({ name: u.displayName || u.mail, mail: u.mail.toLowerCase() }))
+      .sort((a, b) => a.name.localeCompare(b.name, "de"));
+    return this._personen;
+  },
+
   // Liefert bereits geladene Daten ohne Netzwerkzugriff (für Dashboard-Kacheln).
   cached(entity) {
     return (this.cache[entity] && this.cache[entity].items) || [];
@@ -203,6 +240,28 @@ function berechneRisiko(werte) {
   const a = Number(werte.Auswirkung) || 0;
   werte.Bewertung = e * a;
   return werte;
+}
+
+// Antwortfrist einer Betroffenenanfrage: ein Monat ab Eingang, bei Verlängerung
+// drei Monate (Art. 12 Abs. 3 DSGVO).
+function berechneAnfrage(werte) {
+  werte.Frist = werte.Eingang ? addiereMonate(werte.Eingang, werte.Verlaengert === "Ja" ? 3 : 1) : "";
+  return werte;
+}
+
+// Fristende nach VO (EWG, Euratom) Nr. 1182/71: gleicher Kalendertag im
+// Zielmonat, gibt es ihn nicht, der letzte Tag des Monats; fällt das Ende auf
+// Samstag oder Sonntag, verschiebt es sich auf den folgenden Montag.
+// Feiertage werden nicht berücksichtigt.
+function addiereMonate(iso, monate) {
+  const [j, m, t] = String(iso).slice(0, 10).split("-").map(Number);
+  const ersterZiel = new Date(Date.UTC(j, m - 1 + monate, 1));
+  const letzterTag = new Date(Date.UTC(ersterZiel.getUTCFullYear(), ersterZiel.getUTCMonth() + 1, 0)).getUTCDate();
+  const ende = new Date(Date.UTC(ersterZiel.getUTCFullYear(), ersterZiel.getUTCMonth(), Math.min(t, letzterTag)));
+  const wochentag = ende.getUTCDay();
+  if (wochentag === 6) ende.setUTCDate(ende.getUTCDate() + 2);
+  if (wochentag === 0) ende.setUTCDate(ende.getUTCDate() + 1);
+  return ende.toISOString().slice(0, 10);
 }
 
 function risikoStufe(wert) {

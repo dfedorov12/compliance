@@ -3,21 +3,28 @@
 // Alle Ansichten der App. Jede Funktion rendert in ihren Container und ist
 // mehrfach aufrufbar (Neuladen über die Aktualisieren-Schaltfläche).
 
-// Kleiner Helfer für Unterreiter innerhalb einer Ansicht.
+// Kleiner Helfer für Unterreiter innerhalb einer Ansicht. Ohne ausdrücklichen
+// Wunsch öffnet er den zuletzt benutzten Reiter (im Browser gemerkt).
 function subTabs(container, tabs, aktiv) {
+  const merkKey = "cc-tab-" + container.id;
+  if (!aktiv) {
+    try { aktiv = localStorage.getItem(merkKey); } catch (e) { /* kein Speicher */ }
+  }
+  if (!tabs.some(t => t.key === aktiv)) aktiv = tabs[0].key;
   container.innerHTML = `
     <div class="subnav">${tabs.map(t =>
       `<button class="sub-btn${t.key === aktiv ? " active" : ""}" data-sub="${t.key}">${esc(t.label)}</button>`).join("")}</div>
     <div class="sub-inhalt"></div>`;
   const inhalt = container.querySelector(".sub-inhalt");
   const zeige = key => {
+    try { localStorage.setItem(merkKey, key); } catch (e) { /* kein Speicher */ }
     container.querySelectorAll(".sub-btn").forEach(b => b.classList.toggle("active", b.dataset.sub === key));
     inhalt.innerHTML = ladeBox();
     const tab = tabs.find(t => t.key === key);
     Promise.resolve(tab.render(inhalt)).catch(e => { inhalt.innerHTML = fehlerBox(e, tab.label); });
   };
   container.querySelectorAll(".sub-btn").forEach(b => { b.onclick = () => zeige(b.dataset.sub); });
-  zeige(aktiv || tabs[0].key);
+  zeige(aktiv);
 }
 
 function kachel(label, wert, zusatz = "", klasse = "") {
@@ -34,6 +41,7 @@ function kachel(label, wert, zusatz = "", klasse = "") {
 
 async function renderDashboard(el) {
   el.innerHTML = `
+    <div id="dashListenHinweis"></div>
     <div class="card">
       <div class="card-head">
         <h2>Compliance-Cockpit</h2>
@@ -43,32 +51,37 @@ async function renderDashboard(el) {
       <div id="dashFrameworks"></div>
     </div>
     <div class="card">
-      <h2>Microsoft 365 – Live</h2>
-      <p class="hint">Werte direkt aus Microsoft Graph. Fehlt eine Berechtigung, wird nur die betroffene Kachel ausgeblendet.</p>
-      <div class="stat-row" id="dashLive">${ladeBox("Microsoft-365-Signale werden abgerufen …")}</div>
+      <div class="card-head">
+        <h2>Arbeitsvorrat</h2>
+        <span class="muted">Alle Fristen aus allen Bereichen, Klick öffnet den Eintrag</span>
+      </div>
+      <div id="dashArbeit">${ladeBox()}</div>
     </div>
     <div class="card">
-      <h2>Fristen der nächsten 30 Tage</h2>
-      <div id="dashFristen">${ladeBox()}</div>
+      <h2>Microsoft 365 – Live</h2>
+      <p class="hint">Werte direkt aus Microsoft Graph. Fehlt eine Berechtigung oder Lizenz, wird nur die betroffene Kachel ausgeblendet.</p>
+      <div class="stat-row" id="dashLive">${ladeBox("Microsoft-365-Signale werden abgerufen …")}</div>
     </div>`;
 
   document.getElementById("btnRefreshDash").onclick = () => { Store.invalidate(); renderDashboard(el); };
 
   // --- Governance-Kacheln
   try {
-    const [controls, aufgaben, risiken, vorfaelle, vvt] = await Promise.all([
-      Store.load("controls"), Store.load("aufgaben"), Store.load("risiken"),
-      Store.load("vorfaelle"), Store.load("vvt")
-    ]);
+    const d = await Store.alle();
+    const { controls, aufgaben, risiken, vorfaelle, vvt, anfragen } = d;
     const offeneAufgaben = aufgaben.filter(a => a.Status === "Offen" || a.Status === "In Arbeit");
     const ueberfaellig = offeneAufgaben.filter(a => istUeberfaellig(a.Faellig));
     const hoheRisiken = risiken.filter(r => Number(r.Bewertung) >= 15 && r.Status !== "Geschlossen");
     const offeneVorfaelle = vorfaelle.filter(v => v.Status !== "Abgeschlossen");
+    const offeneAnfragen = anfragen.filter(anfrageOffen);
+    const knappeAnfragen = offeneAnfragen.filter(a => a.Frist && tageBis(a.Frist) <= 7);
     document.getElementById("dashKacheln").innerHTML =
       kachel("Umsetzungsgrad Controls", umsetzungsgrad(controls) + " %", `${controls.length} Controls`) +
       kachel("Offene Aufgaben", offeneAufgaben.length, ueberfaellig.length ? `<span class="ueberfaellig">${ueberfaellig.length} überfällig</span>` : "im Plan") +
       kachel("Risiken hoch", hoheRisiken.length, `${risiken.length} bewertet`) +
       kachel("Offene Vorfälle", offeneVorfaelle.length, `${vorfaelle.length} insgesamt`) +
+      kachel("Betroffenenanfragen", offeneAnfragen.length,
+        knappeAnfragen.length ? `<span class="ueberfaellig">${knappeAnfragen.length} mit Frist ≤ 7 Tage</span>` : "offen") +
       kachel("Verarbeitungstätigkeiten", vvt.length, `${vvt.filter(v => v.Status === "Freigegeben").length} freigegeben`);
 
     // Fortschritt je Framework
@@ -83,34 +96,17 @@ async function renderDashboard(el) {
       </div>`;
     }).join("") || `<p class="muted">Noch keine Frameworks importiert – siehe Einstellungen.</p>`;
 
-    // --- Fristen
-    const fristen = [];
-    aufgaben.filter(a => ["Offen", "In Arbeit"].includes(a.Status) && a.Faellig).forEach(a =>
-      fristen.push({ datum: a.Faellig, art: "Aufgabe", was: a.Title, wer: a.Verantwortlich }));
-    controls.filter(c => c.NaechstePruefung).forEach(c =>
-      fristen.push({ datum: c.NaechstePruefung, art: "Control-Prüfung", was: `${c.Title} – ${c.Bezeichnung}`, wer: c.Verantwortlich }));
-    vvt.filter(v => v.NaechstePruefung).forEach(v =>
-      fristen.push({ datum: v.NaechstePruefung, art: "VVT-Prüfung", was: v.Title, wer: v.DSBFreigabe }));
-    risiken.filter(r => r.Ueberpruefung && r.Status !== "Geschlossen").forEach(r =>
-      fristen.push({ datum: r.Ueberpruefung, art: "Risikoprüfung", was: r.Title, wer: r.Verantwortlich }));
-    (await Store.load("avv")).filter(a => a.NaechstePruefung).forEach(a =>
-      fristen.push({ datum: a.NaechstePruefung, art: "AV-Vertrag", was: a.Title, wer: a.Verantwortlich }));
-
-    const relevant = fristen
-      .filter(f => { const t = tageBis(f.datum); return t !== null && t <= 30; })
-      .sort((a, b) => a.datum.localeCompare(b.datum));
-    document.getElementById("dashFristen").innerHTML = tabelleHtml(relevant, [
-      { key: "datum", label: "Fällig", render: r => {
-          const t = tageBis(r.datum);
-          return `<span class="${t < 0 ? "ueberfaellig" : ""}">${fmtDatum(r.datum)} <span class="muted">(${t < 0 ? Math.abs(t) + " Tage überfällig" : "in " + t + " Tagen"})</span></span>`;
-        } },
-      { key: "art", label: "Art" },
-      { key: "was", label: "Gegenstand" },
-      { key: "wer", label: "Verantwortlich" }
-    ], { leer: "Keine Fristen in den nächsten 30 Tagen." });
+    // Fehlt nach einem Update eine neue Liste, darauf hinweisen statt zu scheitern.
+    if (Store.fehlendeListen.size) {
+      document.getElementById("dashListenHinweis").innerHTML = hinweisBox(
+        `<strong>Noch nicht angelegt:</strong> ${esc([...Store.fehlendeListen].join(", "))}.
+         ${Store.rolle.admin ? `Bitte unter <strong>Einstellungen → „Listen prüfen / anlegen“</strong> nachziehen.`
+           : "Bitte einen Administrator bitten, die Listen anzulegen."}`, "warn");
+    }
+    renderArbeitsvorrat(document.getElementById("dashArbeit"));
   } catch (e) {
     document.getElementById("dashKacheln").innerHTML = fehlerBox(e, "Governance-Daten");
-    document.getElementById("dashFristen").innerHTML = "";
+    document.getElementById("dashArbeit").innerHTML = "";
   }
 
   // --- Live-Kacheln (jede für sich, damit ein fehlendes Recht nicht alles kippt)
@@ -139,6 +135,7 @@ async function renderDashboard(el) {
       platz.innerHTML = `<div class="stat-num">${esc(r.wert)}</div><div class="stat-label">${esc(k.label)}</div>
         <div class="stat-sub">${esc(r.zusatz || "")}</div>`;
     }).catch(e => {
+      if (e.nichtLizenziert) { platz.remove(); return; }
       platz.className = "stat-tile stat-fehlt";
       platz.innerHTML = `<div class="stat-num">–</div><div class="stat-label">${esc(k.label)}</div>
         <div class="stat-sub">${e.name === "BerechtigungFehlt" ? "Berechtigung fehlt"
@@ -164,7 +161,7 @@ function renderPurview(el) {
     { key: "identitaet",label: "Identität & Zugriff", render: renderIdentitaet },
     { key: "geraete",   label: "Geräte", render: renderGeraete },
     { key: "score",     label: "Secure Score", render: renderSecureScore }
-  ]);
+  ], tabWunsch("purview"));
 }
 
 async function renderWarnungen(el) {
@@ -444,7 +441,21 @@ async function renderEdiscovery(el) {
 }
 
 async function renderSrr(el) {
-  const anfragen = await Purview.subjectRightsRequests();
+  let anfragen;
+  try {
+    anfragen = await Purview.subjectRightsRequests();
+  } catch (e) {
+    if (!e.nichtLizenziert) throw e;
+    el.innerHTML = fehlerBox(e, "Microsoft Priva") + `
+      <p>Betroffenenanfragen führen Sie stattdessen im eigenen Register mit Fristüberwachung,
+         Antwortentwürfen und eDiscovery-Anbindung.</p>
+      <button class="btn-primary" id="btnZumRegister">Zum Register für Betroffenenanfragen</button>`;
+    document.getElementById("btnZumRegister").onclick = () => {
+      _tabWunsch.datenschutz = "anfragen";
+      zeigeAnsicht("datenschutz");
+    };
+    return;
+  }
   el.innerHTML = `
     <p class="hint">Betroffenenanfragen aus Microsoft Priva/Purview. Die Monatsfrist des Art. 12 Abs. 3 DSGVO
        wird farblich hervorgehoben.</p>
@@ -624,11 +635,12 @@ async function zeigeControl(c, neuladen) {
         <strong>Live-Nachweis aus Microsoft 365:</strong> ${esc(signal.label)}
         <div id="signalWert">${ladeBox("Signal wird abgerufen …")}</div>
       </div>` : ""}
-      <div class="anlagen-box">
-        <strong>Nachweise</strong>
-        <div id="nachweisListe">${ladeBox("Nachweise werden geladen …")}</div>
-        <label class="upload-label">Datei hinzufügen<input type="file" id="nachweisDatei"></label>
-      </div>`,
+      <div class="verknuepfungen">
+        <strong>Verknüpft</strong>
+        <div id="controlVerknuepfungen">${ladeBox("Verknüpfungen werden gesucht …")}</div>
+      </div>
+      ${nachweisHtml()}`,
+    link: linkZuEintrag("controls", c.id),
     aktionen: [
       { label: "Bearbeiten", klasse: "btn-primary", onClick: () => { Dialog.schliesse(); oeffneEditor("controls", c, neuladen); } },
       { label: "Aufgabe anlegen", klasse: "btn-secondary", onClick: () => {
@@ -675,27 +687,36 @@ async function zeigeControl(c, neuladen) {
     });
   }
 
-  const zeigeNachweise = async () => {
-    const box = document.getElementById("nachweisListe");
-    if (!box) return;
-    const dateien = await listNachweise(c.Title);
-    box.innerHTML = dateien.length
-      ? `<div class="anlagen-list">${dateien.map(f =>
-          `<a href="${esc(f.webUrl)}" target="_blank" rel="noopener">${esc(f.name)}
-           <span class="muted">${(f.size / 1024).toFixed(0)} KB · ${fmtDatum(f.geaendert)}</span></a>`).join("")}</div>`
-      : `<p class="muted">Noch keine Dateien hinterlegt.</p>`;
-  };
-  zeigeNachweise();
-  const dateiInput = document.getElementById("nachweisDatei");
-  if (dateiInput) dateiInput.onchange = async () => {
-    const datei = dateiInput.files[0];
-    dateiInput.value = "";
-    if (!datei) return;
-    if (datei.size > CC_CONFIG.maxAttachmentBytes) { toast("Datei zu groß (max. 10 MB)."); return; }
-    toast("Datei wird hochgeladen …");
-    try { await uploadNachweis(c.Title, datei); toast("Nachweis hochgeladen."); zeigeNachweise(); }
-    catch (e) { toast("Upload fehlgeschlagen: " + e.message, 7000); }
-  };
+  nachweiseVerbinden(c.Title);
+  zeigeVerknuepfungen(c);
+}
+
+// Aufgaben, Risiken und TOM, die dieses Control nennen. Risiken und TOM führen
+// eine kommagetrennte Liste, Aufgaben genau eine Control-ID.
+async function zeigeVerknuepfungen(c) {
+  const box = document.getElementById("controlVerknuepfungen");
+  if (!box) return;
+  const nennt = (liste, id) => String(liste || "").split(/[,;\s]+/).map(s => s.trim()).includes(id);
+  try {
+    const [aufgaben, risiken, tom] = await Promise.all([
+      Store.loadOderLeer("aufgaben"), Store.loadOderLeer("risiken"), Store.loadOderLeer("tom")
+    ]);
+    const gruppen = [
+      ["aufgaben", "Aufgaben", aufgaben.filter(a => String(a.ControlId || "").trim() === c.Title)],
+      ["risiken", "Risiken", risiken.filter(r => nennt(r.ControlIds, c.Title))],
+      ["tom", "TOM", tom.filter(t => nennt(t.ControlIds, c.Title))]
+    ].filter(([, , liste]) => liste.length);
+    box.innerHTML = gruppen.length
+      ? gruppen.map(([entity, label, liste]) => `<div class="verknuepfung-gruppe"><span class="muted">${label}:</span>
+          ${liste.map(x => `<button class="chip" data-entity="${entity}" data-id="${esc(x.id)}">${esc(x.Title)}
+            ${x.Status ? `<span class="chip-status">${esc(x.Status)}</span>` : ""}</button>`).join("")}</div>`).join("")
+      : `<p class="muted">Keine Aufgaben, Risiken oder TOM verweisen auf ${esc(c.Title)}.</p>`;
+    box.querySelectorAll(".chip").forEach(b => {
+      b.onclick = () => { Dialog.schliesse(); oeffneEintrag(b.dataset.entity, b.dataset.id); };
+    });
+  } catch (e) {
+    box.innerHTML = fehlerBox(e, "Verknüpfungen");
+  }
 }
 
 // ===========================================================================
@@ -791,8 +812,9 @@ function renderDatenschutz(el) {
     { key: "vvt", label: "Verarbeitungstätigkeiten", render: c => renderEntity(c, "vvt", { filter: ["Status", "DSFA", "Rechtsgrundlage"] }) },
     { key: "tom", label: "TOM", render: c => renderEntity(c, "tom", { filter: ["Kategorie", "Status"] }) },
     { key: "avv", label: "Auftragsverarbeiter", render: c => renderEntity(c, "avv", { filter: ["Kategorie", "Status", "Garantien"] }) },
+    { key: "anfragen", label: "Betroffenenanfragen", render: renderAnfragen },
     { key: "vorfaelle", label: "Datenpannen & Vorfälle", render: renderVorfaelle }
-  ]);
+  ], tabWunsch("datenschutz"));
 }
 
 async function renderVorfaelle(el) {
@@ -840,11 +862,8 @@ function zeigeVorfall(v, neuladen) {
         <tr><td class="dt">Maßnahmen</td><td>${esc(v.Massnahmen || "–")}</td></tr>
         <tr><td class="dt">Status</td><td>${statusBadge(v.Status)}</td></tr>
       </table>
-      <div class="anlagen-box">
-        <strong>Nachweise</strong>
-        <div id="nachweisListe">${ladeBox()}</div>
-        <label class="upload-label">Datei hinzufügen<input type="file" id="nachweisDatei"></label>
-      </div>`,
+      ${nachweisHtml()}`,
+    link: linkZuEintrag("vorfaelle", v.id),
     aktionen: [
       { label: "Bearbeiten", klasse: "btn-primary", onClick: () => { Dialog.schliesse(); oeffneEditor("vorfaelle", v, neuladen); } },
       { label: "Meldeentwurf erzeugen", klasse: "btn-secondary", onClick: () => zeigeMeldeentwurf(v) },
@@ -859,23 +878,7 @@ function zeigeVorfall(v, neuladen) {
     ]
   });
 
-  const ordner = "Vorfall-" + String(v.id);
-  const zeigeNachweise = async () => {
-    const box = document.getElementById("nachweisListe");
-    if (!box) return;
-    const dateien = await listNachweise(ordner);
-    box.innerHTML = dateien.length
-      ? `<div class="anlagen-list">${dateien.map(f => `<a href="${esc(f.webUrl)}" target="_blank" rel="noopener">${esc(f.name)}</a>`).join("")}</div>`
-      : `<p class="muted">Noch keine Dateien hinterlegt.</p>`;
-  };
-  zeigeNachweise();
-  const inp = document.getElementById("nachweisDatei");
-  if (inp) inp.onchange = async () => {
-    const datei = inp.files[0]; inp.value = "";
-    if (!datei) return;
-    try { await uploadNachweis(ordner, datei); toast("Nachweis hochgeladen."); zeigeNachweise(); }
-    catch (e) { toast("Upload fehlgeschlagen: " + e.message, 7000); }
-  };
+  nachweiseVerbinden("Vorfall-" + String(v.id));
 }
 
 // Textentwurf für die Meldung nach Art. 33 DSGVO – zum Kopieren in das
@@ -939,10 +942,11 @@ async function renderBerichte(el) {
   el.innerHTML = `
     <div class="card no-print">
       <h2>Berichte</h2>
-      <p class="hint">Managementbericht für Geschäftsleitung und Audit sowie Nachweis-Snapshot aller
-         Microsoft-365-Signale zum Stichtag.</p>
+      <p class="hint">Managementbericht für Geschäftsleitung und Audit, Erklärung zur Anwendbarkeit (SoA)
+         für die Zertifizierung sowie Nachweis-Snapshot aller Microsoft-365-Signale zum Stichtag.</p>
       <div class="btn-reihe">
         <button class="btn-primary" id="btnBericht">Managementbericht erzeugen</button>
+        <button class="btn-secondary" id="btnSoa">Erklärung zur Anwendbarkeit (SoA)</button>
         <button class="btn-secondary" id="btnSnapshot">Nachweis-Snapshot M365</button>
         <button class="btn-csv" id="btnDruck">Drucken / als PDF speichern</button>
       </div>
@@ -952,15 +956,16 @@ async function renderBerichte(el) {
   document.getElementById("btnDruck").onclick = () => window.print();
   document.getElementById("btnBericht").onclick = () => managementBericht(document.getElementById("berichtInhalt"));
   document.getElementById("btnSnapshot").onclick = () => nachweisSnapshot(document.getElementById("berichtInhalt"));
+  document.getElementById("btnSoa").onclick = () => soaBericht(document.getElementById("berichtInhalt"));
   managementBericht(document.getElementById("berichtInhalt"));
 }
 
 async function managementBericht(box) {
   box.innerHTML = ladeBox("Bericht wird erstellt …");
-  const [controls, aufgaben, risiken, vorfaelle, vvt, avv, tom] = await Promise.all([
-    Store.load("controls"), Store.load("aufgaben"), Store.load("risiken"),
-    Store.load("vorfaelle"), Store.load("vvt"), Store.load("avv"), Store.load("tom")
-  ]);
+  const { controls, aufgaben, risiken, vorfaelle, vvt, avv, tom, anfragen } = await Store.alle();
+  const vorJahr = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+  const anfragenJahr = anfragen.filter(a => (a.Eingang || "") >= vorJahr);
+  const quote = fristtreue(anfragenJahr);
   const heute = new Date().toLocaleDateString("de-DE");
   const offeneAufgaben = aufgaben.filter(a => ["Offen", "In Arbeit"].includes(a.Status));
   const frameworks = [...new Set(controls.map(c => c.Framework))];
@@ -1018,7 +1023,14 @@ async function managementBericht(box) {
         ${kachel("DSFA erforderlich", vvt.filter(v => v.DSFA === "Erforderlich").length)}
         ${kachel("Auftragsverarbeiter", avv.filter(a => a.Status === "Aktiv").length)}
         ${kachel("TOM umgesetzt", `${tom.filter(t => t.Status === "Umgesetzt").length}/${tom.length}`)}
+        ${kachel("Betroffenenanfragen (12 Mon.)", anfragenJahr.length, `${anfragenJahr.filter(anfrageOffen).length} offen`)}
+        ${kachel("Fristtreue Anfragen", quote ? quote.prozent + " %" : "–", quote ? `${quote.rechtzeitig} von ${quote.gesamt} rechtzeitig` : "")}
       </div>
+      ${anfragenJahr.length ? tabelleHtml(CC_ANFRAGE_ARTEN
+        .map(art => ({ art, anzahl: anfragenJahr.filter(a => a.Art === art).length }))
+        .filter(z => z.anzahl), [
+          { key: "art", label: "Betroffenenanfragen nach Art" }, { key: "anzahl", label: "Anzahl" }
+        ]) : ""}
       ${tabelleHtml(vorfaelle.filter(v => (v.Entdeckt || "") >= new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10)), [
         { key: "Entdeckt", label: "Entdeckt", render: v => fmtDatum(v.Entdeckt) },
         { key: "Title", label: "Vorfall" }, { key: "Art", label: "Art" },
@@ -1032,6 +1044,72 @@ async function managementBericht(box) {
         { key: "Begruendung", label: "Begründung" }
       ], { leer: "Alle Controls sind anwendbar." })}
     </div>`;
+}
+
+
+// Erklärung zur Anwendbarkeit (Statement of Applicability) nach ISO/IEC 27001,
+// Abschnitt 6.1.3 d: jede Maßnahme mit Anwendbarkeit, Begründung und Umsetzungsstand.
+async function soaBericht(box) {
+  box.innerHTML = ladeBox("SoA wird erstellt …");
+  const controls = await Store.loadOderLeer("controls");
+  const frameworks = [...new Set(controls.map(c => c.Framework))];
+  const wahl = frameworks.includes("ISO27001") ? "ISO27001" : frameworks[0];
+  if (!wahl) { box.innerHTML = hinweisBox("Noch keine Controls importiert.", "info"); return; }
+
+  const zeichne = fw => {
+    const liste = controls.filter(c => c.Framework === fw).sort((a, b) => sortiereControlId(a.Title, b.Title));
+    const zeilen = liste.map(c => ({
+      id: c.Title,
+      titel: c.Bezeichnung,
+      anwendbar: c.Status === "Nicht anwendbar" ? "Nein" : "Ja",
+      begruendung: c.Status === "Nicht anwendbar"
+        ? (c.Begruendung || "[Begründung fehlt]")
+        : (c.Umsetzung || c.Anforderung || ""),
+      status: c.Status,
+      reifegrad: c.Reifegrad,
+      nachweis: c.NachweisText,
+      geprueft: c.LetztePruefung
+    }));
+    const fehlend = zeilen.filter(z => z.anwendbar === "Nein" && z.begruendung === "[Begründung fehlt]").length;
+    const kategorien = (CC_FRAMEWORKS[fw] || {}).kategorien || {};
+    box.innerHTML = `
+      <div class="bericht">
+        <div class="card-head no-print">
+          <label class="feldzeile">Norm
+            <select id="soaFw">${frameworks.map(f => `<option value="${f}"${f === fw ? " selected" : ""}>${esc((CC_FRAMEWORKS[f] || {}).label || f)}</option>`).join("")}</select></label>
+          <button class="btn-csv" id="btnSoaCsv">SoA als CSV</button>
+        </div>
+        <h2>Erklärung zur Anwendbarkeit</h2>
+        <p class="muted">${esc((CC_FRAMEWORKS[fw] || {}).label || fw)} · ${esc((Store.konfig && Store.konfig.organisation) || "")} ·
+          Stand ${new Date().toLocaleDateString("de-DE")} · erstellt von ${esc(Store.benutzer.name)}</p>
+        <div class="stat-row">
+          ${kachel("Maßnahmen", zeilen.length)}
+          ${kachel("Anwendbar", zeilen.filter(z => z.anwendbar === "Ja").length)}
+          ${kachel("Ausgeschlossen", zeilen.filter(z => z.anwendbar === "Nein").length)}
+          ${kachel("Umgesetzt", zeilen.filter(z => z.status === "Umgesetzt").length)}
+        </div>
+        ${fehlend ? hinweisBox(`<strong>${fehlend} ausgeschlossene Maßnahme(n) ohne Begründung.</strong>
+          Auditoren verlangen für jeden Ausschluss eine Begründung.`, "warn") : ""}
+        ${Object.keys(kategorien).map(k => {
+          const teil = zeilen.filter(z => z.id.startsWith(k + "."));
+          if (!teil.length) return "";
+          return `<h3>${esc(k)} ${esc(kategorien[k])}</h3>` + tabelleHtml(teil, [
+            { key: "id", label: "Nr." },
+            { key: "titel", label: "Maßnahme" },
+            { key: "anwendbar", label: "Anwendbar", render: z => statusBadge(z.anwendbar) },
+            { key: "begruendung", label: "Begründung / Umsetzung" },
+            { key: "status", label: "Status", render: z => statusBadge(z.status) }
+          ]);
+        }).join("")}
+      </div>`;
+    document.getElementById("soaFw").onchange = ev => zeichne(ev.target.value);
+    document.getElementById("btnSoaCsv").onclick = () => csvExport(`SoA_${fw}_${new Date().toISOString().slice(0, 10)}.csv`, zeilen, [
+      { key: "id", label: "Nr." }, { key: "titel", label: "Maßnahme" }, { key: "anwendbar", label: "Anwendbar" },
+      { key: "begruendung", label: "Begründung / Umsetzung" }, { key: "status", label: "Umsetzungsstatus" },
+      { key: "reifegrad", label: "Reifegrad" }, { key: "nachweis", label: "Nachweis" }, { key: "geprueft", label: "Letzte Prüfung" }
+    ]);
+  };
+  zeichne(wahl);
 }
 
 async function nachweisSnapshot(box) {

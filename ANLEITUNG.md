@@ -63,8 +63,15 @@ Angeforderte Berechtigungen (alle **delegiert**, keine Anwendungsberechtigungen)
 App öffnen → **Einstellungen → „Listen prüfen / anlegen"**. Angelegt werden:
 
 `Compliance_Controls`, `Compliance_Aufgaben`, `Compliance_Risiken`, `Compliance_VVT`,
-`Compliance_TOM`, `Compliance_AVV`, `Compliance_Vorfaelle`, `Compliance_Konfiguration`
-sowie die Dokumentbibliothek `Compliance_Nachweise`.
+`Compliance_TOM`, `Compliance_AVV`, `Compliance_Vorfaelle`, `Compliance_Anfragen`,
+`Compliance_Konfiguration` sowie die Dokumentbibliothek `Compliance_Nachweise`.
+
+Kommt mit einem Update eine neue Liste hinzu (zuletzt `Compliance_Anfragen`), zeigt das Dashboard
+einen Hinweis, bis sie angelegt ist. Die übrigen Bereiche arbeiten bis dahin normal weiter.
+
+> **Datenschutz der Listen:** `Compliance_Anfragen` und `Compliance_Vorfaelle` enthalten
+> personenbezogene Daten. Die Berechtigung dieser beiden Listen sollte auf DSB und Compliance-Kreis
+> beschränkt werden (SharePoint → Listeneinstellungen → Berechtigungen, Vererbung unterbrechen).
 
 Die Spalten stammen aus `js/schema.js`. Wird das Schema erweitert, legt derselbe Knopf die
 fehlenden Spalten nach – vorhandene Daten bleiben erhalten.
@@ -103,8 +110,34 @@ Empfehlung: Leseberechtigung auf die Listen für den Compliance-Kreis beschränk
 * **Datenpanne:** Datenschutz → Datenpannen → „+ Vorfall" mit Datum **und Uhrzeit** der Kenntnis
   (Startpunkt der 72-Stunden-Frist) → „Meldeentwurf erzeugen" → prüfen → an DSB senden oder
   in das Portal der Aufsichtsbehörde übertragen.
-* **Audit:** Berichte → „Managementbericht erzeugen" → drucken/als PDF speichern; zusätzlich
-  „Nachweis-Snapshot M365" als CSV zum Stichtag.
+* **Betroffenenanfrage:** Datenschutz → Betroffenenanfragen → „+ Betroffenenanfrage“. Vorgangsnummer,
+  Eingang und Bearbeiter sind vorbelegt, die Antwortfrist rechnet die App (siehe unten). Im Vorgang:
+  Identität prüfen, „In Durchsuchte Systeme übernehmen“ aus dem VVT-Suchumfang, bei Bedarf
+  „eDiscovery-Fall anlegen“ und im Purview-Portal Postfach/OneDrive der Person durchsuchen, dann
+  „Antwortentwurf“ und „Als beantwortet erfassen“.
+* **Audit:** Berichte → „Managementbericht erzeugen“ → drucken/als PDF speichern; für die
+  ISO-Zertifizierung „Erklärung zur Anwendbarkeit (SoA)“ (warnt bei Ausschlüssen ohne Begründung);
+  zusätzlich „Nachweis-Snapshot M365“ als CSV zum Stichtag.
+
+### Schneller arbeiten
+
+| Funktion | Wo | Nutzen |
+|---|---|---|
+| **Arbeitsvorrat** | Dashboard | Alle Fristen aus Aufgaben, Controls, Risiken, VVT, AV-Verträgen, Betroffenenanfragen und Datenpannen in einer Liste, filterbar nach „nur meine“, Zeitraum und Art. Klick öffnet den Eintrag. |
+| **Globale Suche** | Kopfzeile, Taste `/` | Durchsucht alle Bereiche auf einmal, Treffer mit Fundstelle. |
+| **Sammelbearbeitung** | jede Tabelle | Einträge ankreuzen, dann Verantwortliche, Status oder Termine für alle gleichzeitig setzen. Leere Felder bleiben unverändert, Frist und Risikowert werden je Eintrag neu berechnet. |
+| **Personenauswahl** | Personenfelder | Vorschläge aus dem Verzeichnis statt E-Mail-Adressen abzutippen. |
+| **Direktlinks** | „Link kopieren“ im Dialog | Link auf genau diesen Eintrag, z. B. für Teams. Erinnerungsmails verlinken ebenso direkt und funktionieren auch über die Anmeldung hinweg. |
+| **Verknüpfungen** | Control-Dialog | Zeigt Aufgaben, Risiken und TOM, die das Control nennen. |
+| **Gemerkte Filter** | alle Listen | Suchbegriff, Filter und zuletzt benutzter Unterreiter bleiben je Ansicht im Browser gespeichert. |
+
+### Antwortfrist bei Betroffenenanfragen
+
+Art. 12 Abs. 3 DSGVO: ein Monat ab Eingang, bei Verlängerung insgesamt drei Monate. Die App rechnet
+nach der Fristenverordnung (EWG) Nr. 1182/71: Ende am gleichen Kalendertag des Folgemonats, gibt es
+ihn nicht, am letzten Tag des Monats; fällt das Ende auf Samstag oder Sonntag, gilt der folgende
+Montag. **Feiertage berücksichtigt die App nicht**, im Zweifel früher antworten. Eine Verlängerung
+muss der Person innerhalb des ersten Monats mitgeteilt werden; dafür gibt es einen Entwurf.
 
 ## 6. Cron (Erinnerungen, Eskalationen, Wochenbericht)
 
@@ -120,7 +153,11 @@ Der Lauf erledigt:
 2. Controls: fällige Wiederholungsprüfungen gebündelt an die Verantwortlichen
 3. Datenschutz: fällige VVT-/AV-Prüfungen und auslaufende Verträge an den DSB
 4. Datenpannen: Warnung, wenn die 72-Stunden-Frist unter 48 h fällt, unter 24 h und nach Ablauf
-5. montags: Wochenbericht an CISO, DSB und Administratoren
+   (die Uhrzeit der Kenntnis gilt als deutsche Zeit)
+5. Betroffenenanfragen: Hinweis 7 und 2 Tage vor Fristende, Eskalation nach Ablauf
+6. montags: Wochenbericht an CISO, DSB und Administratoren
+
+Jede Mail verlinkt direkt auf den betroffenen Eintrag.
 
 Fristen und Empfänger stammen aus den App-Einstellungen; `erinnerungenAktiv: false` schaltet
 alles ab. Ohne gesetzte Secrets endet der Lauf als grüner No-op. Manueller Testlauf über

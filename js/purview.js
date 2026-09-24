@@ -417,6 +417,13 @@ const CC_SIGNALE = {
       const c = await Purview.ediscoveryCases();
       return { text: `${c.filter(x => x.status !== "closed").length} aktive eDiscovery-Fälle (von ${c.length})`, daten: c };
     } },
+  anfragen: { label: CC_SIGNAL_LABELS.anfragen, laden: async () => {
+      const a = await Store.load("anfragen");
+      const offen = a.filter(anfrageOffen);
+      const q = fristtreue(a);
+      return { text: `${a.length} Betroffenenanfragen erfasst, ${offen.length} offen` +
+        (q ? `, Fristtreue ${q.prozent} % (${q.rechtzeitig} von ${q.gesamt} rechtzeitig)` : ""), daten: a };
+    } },
   srr: { label: CC_SIGNAL_LABELS.srr, laden: async () => {
       const r = await Purview.subjectRightsRequests();
       return { text: `${r.filter(x => x.status !== "closed").length} offene Betroffenenanfragen (von ${r.length})`, daten: r };
