@@ -22,6 +22,7 @@ param(
     [string]$TenantId = "fdb70646-023a-403b-a4b9-1f474a935123",
     [string[]]$RedirectUris = @(
         "https://compliance.dihag.de/",
+        "https://compliance.dihag.de/redirect.html",
         "http://localhost:8771/"
     ),
     [switch]$NurLesen   # nur Lese-Berechtigungen anfordern (Read-only-Cockpit)
