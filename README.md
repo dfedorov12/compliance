@@ -31,7 +31,7 @@ M365-Nachweise je Annex-A-Control und die Datenschutz-Register.
 
 ## Technik
 
-Statische SPA (kein Server): MSAL 2.38.1 → Microsoft Graph → SharePoint-Listen auf `/sites/IT`.
+Statische SPA (kein Server): MSAL 4.30.0 LTS (selbst ausgeliefert aus `vendor/`) → Microsoft Graph → SharePoint-Listen auf `/sites/IT`.
 Berechtigungen werden **inkrementell** angefordert – fehlt eine, blendet die App nur den
 betroffenen Bereich mit Hinweis aus.
 
@@ -57,3 +57,17 @@ cron/                 Täglicher Erinnerungslauf (Python, App-only)
 ```
 
 Details zur Einrichtung: [ANLEITUNG.md](ANLEITUNG.md)
+
+## Sicherheit (Stand 2026-09-25)
+
+- **CSP** in `index.html`: Skripte nur aus der eigenen Quelle (`script-src 'self'`, kein Inline-Code –
+  die App nutzt keine Inline-Handler, das soll so bleiben), Daten nur an Graph, Anmeldung und
+  SharePoint. Neue Ziele (fetch, iframe) dort eintragen, sonst blockiert der Browser sie.
+- **MSAL** aus `vendor/msal-browser/4.30.0` (npm-Paket, Integrität geprüft) statt vom CDN;
+  `initialize()` läuft vor jedem anderen MSAL-Aufruf (`_msalBereit` in `js/graph.js`).
+- **Escaping:** Tabellen, Kacheln und Badges escapen selbst; `fmtDatum()`/`fmtDatumZeit()` escapen
+  auch, was kein Datum ist. Der Cron escapt alle SharePoint-Felder in Mails (`esc()`).
+- **Workflows** auf Commits festgelegt; Cron und Syntax-Check laufen nur mit Leserecht.
+- **Offen:** Die App läuft unter `dfedorov12.github.io` – diese Origin teilen sich alle
+  GitHub-Pages-Seiten des Kontos. Eine eigene Domain (z. B. `compliance.dihag.de`, wie
+  `rms.dihag.de`) trennt sie; dafür DNS-Eintrag, `CNAME`-Datei und neue Redirect-URI in Entra.

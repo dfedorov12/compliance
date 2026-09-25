@@ -27,6 +27,7 @@ import datetime
 import urllib.request
 import urllib.parse
 import urllib.error
+from html import escape as _html_escape
 
 TENANT = os.environ.get("CC_TENANT_ID", "")
 CLIENT = os.environ.get("CC_CLIENT_ID", "")
@@ -171,15 +172,24 @@ def link_zu(entity, item_id, ansicht):
     return f"{APP_URL}?ansicht={ansicht}&eintrag={entity}:{item_id}"
 
 
+def esc(wert):
+    """Text aus SharePoint für eine HTML-Mail – escapt, auch Anführungszeichen.
+
+    Titel, Namen und Status kommen aus Listen, in die viele schreiben können,
+    und bei Betroffenenanfragen von außen. Roh eingesetzt ließe sich damit HTML
+    und ein fremder Link in eine Mail vom offiziellen Absender schmuggeln."""
+    return _html_escape("" if wert is None else str(wert), quote=True)
+
+
 def verlinkt(text, link):
-    return f"<a href='{link}' style='color:#17509E'>{text}</a>"
+    return f"<a href='{esc(link)}' style='color:#17509E'>{esc(text)}</a>"
 
 
 def rahmen(inhalt, titel, link=None):
     knopf = "Eintrag im Compliance-Cockpit öffnen" if link else "Compliance-Cockpit öffnen"
     return (f"<div style='font-family:Segoe UI,Arial,sans-serif;color:#424241'>"
-            f"<h2 style='color:#1A2644'>{titel}</h2>{inhalt}"
-            f"<p style='margin-top:24px'><a href='{link or APP_URL}' "
+            f"<h2 style='color:#1A2644'>{esc(titel)}</h2>{inhalt}"
+            f"<p style='margin-top:24px'><a href='{esc(link or APP_URL)}' "
             f"style='background:#17509E;color:#fff;padding:9px 18px;border-radius:6px;"
             f"text-decoration:none'>{knopf}</a></p>"
             f"<p style='color:#6d7d8e;font-size:12px'>Automatische Nachricht des DIHAG "
@@ -270,11 +280,11 @@ def run_anfragen(k):
         empfaenger = eskalation if rest < 0 else [f.get("Verantwortlich"), dsb]
         try:
             send_mail(empfaenger, f"Betroffenenanfrage {titel} ({art}) {lage}",
-                      rahmen(f"<p>Die Betroffenenanfrage <b>{titel}</b> ({art}) von "
-                             f"<b>{f.get('PersonName', '')}</b> ist <b>{lage}</b>. "
-                             f"Eingang {str(f.get('Eingang', ''))[:10]}, Frist {str(f.get('Frist', ''))[:10]}.</p>"
+                      rahmen(f"<p>Die Betroffenenanfrage <b>{esc(titel)}</b> ({esc(art)}) von "
+                             f"<b>{esc(f.get('PersonName', ''))}</b> ist <b>{lage}</b>. "
+                             f"Eingang {esc(str(f.get('Eingang', ''))[:10])}, Frist {esc(str(f.get('Frist', ''))[:10])}.</p>"
                              + "".join(f"<p>{h}</p>" for h in hinweise) +
-                             f"<p>Status: {f.get('Status', '–')}</p>",
+                             f"<p>Status: {esc(f.get('Status', '–'))}</p>",
                              "Antwortfrist einer Betroffenenanfrage",
                              link_zu("anfragen", it["id"], "datenschutz")))
             patch_fields(L_ANFRAGEN, it["id"], {"Erinnert": stufe})
@@ -315,7 +325,7 @@ def run_wochenbericht(k):
     if knappe:
         html += ("<h3>Anfragen mit knapper Frist</h3><ul>" + "".join(
             f"<li>{verlinkt(i['fields'].get('Title'), link_zu('anfragen', i['id'], 'datenschutz'))} "
-            f"({i['fields'].get('Art', '')}), Frist {str(i['fields'].get('Frist', ''))[:10]}</li>" for i in knappe[:20]) + "</ul>")
+            f"({esc(i['fields'].get('Art', ''))}), Frist {esc(str(i['fields'].get('Frist', ''))[:10])}</li>" for i in knappe[:20]) + "</ul>")
     html += "<p style='color:#6d7d8e'>ISMS-Kennzahlen (SoA, Risiken, Maßnahmen) meldet das RMS.</p>"
 
     send_mail(ziele, f"Datenschutz-Wochenbericht {HEUTE.strftime('%d.%m.%Y')}",

@@ -3,12 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Sicherheit: Skripte nur aus der eigenen Quelle (kein Inline-Code, also auch keins, das
+       eingeschleust wurde), Daten nur an Graph, Anmeldung und SharePoint. Das Cockpit hält
+       Tokens für Sicherheitswarnungen, eDiscovery und Betroffenenanfragen – eingeschleuster
+       Code dürfte weder laufen noch etwas nach draußen schicken. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://*.sharepoint.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
   <title>DIHAG Compliance-Cockpit</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Exo:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css?v=4afc390e">
-  <script src="https://alcdn.msauth.net/browser/2.38.1/js/msal-browser.min.js"></script>
+  <!-- MSAL selbst ausgeliefert (npm @azure/msal-browser 4.30.0 LTS, Integrität geprüft) – keine fremde Skriptquelle -->
+  <script src="vendor/msal-browser/4.30.0/msal-browser.min.js"></script>
 </head>
 <body>
   <header class="no-print">
