@@ -10,10 +10,14 @@ const msalInstance = new msal.PublicClientApplication({
   },
   cache: { cacheLocation: "sessionStorage" }
 });
+// Ab MSAL 3 muss initialize() fertig sein, bevor irgendeine andere MSAL-Funktion
+// läuft. Einmal starten, überall abwarten.
+const _msalBereit = msalInstance.initialize();
 
 let _account = null;
 
 async function ensureLogin() {
+  await _msalBereit;
   const resp = await msalInstance.handleRedirectPromise();
   if (resp && resp.account) {
     _account = resp.account;
@@ -51,6 +55,7 @@ const _abgelehnteScopes = new Set();
 
 async function getToken(scopes = CC_SCOPES.base) {
   const key = scopes.join(" ");
+  await _msalBereit;
   try {
     const r = await msalInstance.acquireTokenSilent({ scopes, account: _account });
     return r.accessToken;

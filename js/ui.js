@@ -11,14 +11,14 @@ function esc(s) {
 function fmtDatum(iso) {
   if (!iso) return "";
   const d = new Date(String(iso).length <= 10 ? iso + "T12:00:00" : iso);
-  if (isNaN(d)) return String(iso);
+  if (isNaN(d)) return esc(iso);   // kein Datum: Text aus SharePoint – escapen, er landet in HTML
   return d.toLocaleDateString("de-DE");
 }
 
 function fmtDatumZeit(iso) {
   if (!iso) return "";
   const d = new Date(iso);
-  if (isNaN(d)) return String(iso);
+  if (isNaN(d)) return esc(iso);
   return d.toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
 }
 
