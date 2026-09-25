@@ -21,7 +21,7 @@ param(
     [string]$ClientId = "a129024b-8b1a-4d54-89f4-8e6049b5f59b",
     [string]$TenantId = "fdb70646-023a-403b-a4b9-1f474a935123",
     [string[]]$RedirectUris = @(
-        "https://dfedorov12.github.io/compliance/",
+        "https://compliance.dihag.de/",
         "http://localhost:8771/"
     ),
     [switch]$NurLesen   # nur Lese-Berechtigungen anfordern (Read-only-Cockpit)
@@ -150,7 +150,7 @@ Write-Host "[3/3] Administratorzustimmung fuer alle Benutzer erteilt." -Foregrou
 
 Write-Host ""
 Write-Host "Fertig. Naechste Schritte:" -ForegroundColor Cyan
-Write-Host "  1. App oeffnen: https://dfedorov12.github.io/compliance/"
+Write-Host "  1. App oeffnen: https://compliance.dihag.de/"
 Write-Host "  2. Einstellungen -> 'Listen pruefen / anlegen' (legt Listen + Bibliothek an)"
 Write-Host "  3. Einstellungen -> Administratoren, DSB, CISO eintragen und speichern"
 Write-Host "  4. Einstellungen -> 'Normenkatalog importieren'"

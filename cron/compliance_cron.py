@@ -35,7 +35,7 @@ SECRET = os.environ.get("CC_CLIENT_SECRET", "")
 HOST = os.environ.get("CC_SITE_HOST", "dihag.sharepoint.com")
 SITEPATH = os.environ.get("CC_SITE_PATH", "/sites/IT")
 SENDER = os.environ.get("CC_SENDER", "administrator@dihag.com")
-APP_URL = os.environ.get("CC_APP_URL", "https://dfedorov12.github.io/compliance/")
+APP_URL = os.environ.get("CC_APP_URL", "https://compliance.dihag.de/")
 DRY_RUN = os.environ.get("CC_DRY_RUN", "").lower() in ("1", "true", "ja")
 
 L_VVT = "Compliance_VVT"

@@ -41,7 +41,7 @@ Anwendungsberechtigungen (Admin-Zustimmung erforderlich):
 | `CC_SITE_HOST` | `dihag.sharepoint.com` |
 | `CC_SITE_PATH` | `/sites/IT` |
 | `CC_SENDER` | `administrator@dihag.com` |
-| `CC_APP_URL` | `https://dfedorov12.github.io/compliance/` |
+| `CC_APP_URL` | `https://compliance.dihag.de/` |
 | `CC_DRY_RUN` | `true` bei manuellem Start mit Testlauf |
 
 ## Testlauf
