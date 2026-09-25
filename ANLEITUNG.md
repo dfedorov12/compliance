@@ -25,7 +25,7 @@ eigener Befund.
 | Entra-App-Registrierung | „DIHAG Compliance", Client `a129024b-8b1a-4d54-89f4-8e6049b5f59b` |
 | Objekt-ID | `630e639b-d406-402e-bc34-4c9f87ef26bb` |
 | Mandant | `fdb70646-023a-403b-a4b9-1f474a935123` |
-| Plattform | **Einzelseitige Anwendung (SPA)**, Redirect-URI `https://compliance.dihag.de/` |
+| Plattform | **Einzelseitige Anwendung (SPA)**, Redirect-URIs `https://compliance.dihag.de/` und `https://compliance.dihag.de/redirect.html` |
 | SharePoint-Site | `dihag.sharepoint.com/sites/IT` |
 | RMS | rms.dihag.de; für die Anbindung braucht der angemeldete Benutzer Lesezugriff auf `/sites/ISMS` (Risiken, Wirksamkeit) |
 | Lizenzen | Microsoft Priva ist nicht bereitgestellt (daher das eigene Register für Betroffenenanfragen), eDiscovery (Premium) braucht eine E5-/Add-on-Lizenz |

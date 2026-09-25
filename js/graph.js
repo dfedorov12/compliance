@@ -6,7 +6,12 @@ const msalInstance = new msal.PublicClientApplication({
   auth: {
     clientId: CC_CONFIG.clientId,
     authority: "https://login.microsoftonline.com/" + CC_CONFIG.tenantId,
-    redirectUri: window.location.origin + window.location.pathname
+    // MSAL 5: Die Antwort von Microsoft landet auf der eigenen Rückkehrseite
+    // (redirect.html, „Redirect-Bridge") und wird von dort an diese Seite
+    // weitergereicht. In Entra muss genau diese Adresse als SPA-Redirect-URI stehen.
+    redirectUri: new URL("redirect.html", window.location.href).href,
+    // Nach dem Abmelden zurück auf die App (ohne Bridge – bei logoutRedirect optional).
+    postLogoutRedirectUri: window.location.origin + window.location.pathname
   },
   cache: { cacheLocation: "sessionStorage" }
 });

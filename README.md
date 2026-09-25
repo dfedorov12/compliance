@@ -63,8 +63,18 @@ Details zur Einrichtung: [ANLEITUNG.md](ANLEITUNG.md)
 - **CSP** in `index.html`: Skripte nur aus der eigenen Quelle (`script-src 'self'`, kein Inline-Code –
   die App nutzt keine Inline-Handler, das soll so bleiben), Daten nur an Graph, Anmeldung und
   SharePoint. Neue Ziele (fetch, iframe) dort eintragen, sonst blockiert der Browser sie.
-- **MSAL** aus `vendor/msal-browser/4.30.0` (npm-Paket, Integrität geprüft) statt vom CDN;
+- **MSAL 5** aus `vendor/msal-browser/5.23.0` (npm-Paket, Integrität geprüft) statt vom CDN;
   `initialize()` läuft vor jedem anderen MSAL-Aufruf (`_msalBereit` in `js/graph.js`).
+- **Rückkehrseite `redirect.html`** („Redirect-Bridge"): Microsoft leitet nach der Anmeldung dorthin,
+  die Seite reicht die Antwort an die App weiter (Popup/iframe per BroadcastChannel, Weiterleitung
+  per sessionStorage). In Entra muss **`https://compliance.dihag.de/redirect.html`** als
+  SPA-Redirect-URI stehen. Die Seite darf eingebettet werden (unsichtbares iframe der Anmeldung).
+- **Clickjacking-Schutz:** `index.html` ist unsichtbar, bis `js/rahmenschutz.js` bestätigt, dass die
+  Seite nicht in einem fremden Rahmen steckt. Möglich erst mit MSAL 5, weil die Anmeldung ihre
+  iframes und Popups auf `redirect.html` statt auf die App lädt.
+- **Test:** `tests/anmeldung-e2e.mjs` simuliert die Microsoft-Anmeldung in Chromium und spielt
+  Weiterleitung, stilles iframe, Ablehnung, Popup und den Clickjacking-Fall durch – vor jedem
+  MSAL-Update laufen lassen (Anleitung im Dateikopf).
 - **Escaping:** Tabellen, Kacheln und Badges escapen selbst; `fmtDatum()`/`fmtDatumZeit()` escapen
   auch, was kein Datum ist. Der Cron escapt alle SharePoint-Felder in Mails (`esc()`).
 - **Workflows** auf Commits festgelegt; Cron und Syntax-Check laufen nur mit Leserecht.
