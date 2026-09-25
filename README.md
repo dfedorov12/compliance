@@ -5,8 +5,8 @@ Vorfälle und Maßnahmen ist das **Richtlinienmanagementsystem** ([rms.dihag.de]
 das Cockpit ist daran angebunden und liefert, was dort fehlt: Live-Daten aus Microsoft 365/Purview,
 M365-Nachweise je Annex-A-Control und die Datenschutz-Register.
 
-**Live:** https://dfedorov12.github.io/compliance/
-**Demo mit Beispieldaten (ohne Anmeldung):** https://dfedorov12.github.io/compliance/?demo=1
+**Live:** https://compliance.dihag.de/
+**Demo mit Beispieldaten (ohne Anmeldung):** https://compliance.dihag.de/?demo=1
 
 ## Was die App macht
 
@@ -68,6 +68,6 @@ Details zur Einrichtung: [ANLEITUNG.md](ANLEITUNG.md)
 - **Escaping:** Tabellen, Kacheln und Badges escapen selbst; `fmtDatum()`/`fmtDatumZeit()` escapen
   auch, was kein Datum ist. Der Cron escapt alle SharePoint-Felder in Mails (`esc()`).
 - **Workflows** auf Commits festgelegt; Cron und Syntax-Check laufen nur mit Leserecht.
-- **Offen:** Die App läuft unter `dfedorov12.github.io` – diese Origin teilen sich alle
-  GitHub-Pages-Seiten des Kontos. Eine eigene Domain (z. B. `compliance.dihag.de`, wie
-  `rms.dihag.de`) trennt sie; dafür DNS-Eintrag, `CNAME`-Datei und neue Redirect-URI in Entra.
+- **Eigene Domain:** `compliance.dihag.de` (Datei `CNAME`). Unter `dfedorov12.github.io` teilte sich
+  die App die Origin mit allen GitHub-Pages-Seiten des Kontos – deren Skripte hätten auf denselben
+  Browserspeicher zugreifen können. Redirect-URI in Entra: `https://compliance.dihag.de/`.
