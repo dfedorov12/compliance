@@ -376,7 +376,9 @@ async function renderRollenregister(el) {
   const darf = darfRollenVerwalten();
   const vorJahr = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
   const neuladen = () => { Store.invalidate("rollenregister"); renderRollenregister(el); };
-  const listeFehlt = Store.fehlendeListen.has(CC_LISTS.rollenregister);
+  const keinZugriff = Store.ohneZugriff.has(CC_LISTS.rollenregister) ||
+    (Store.fehlendeListen.has(CC_LISTS.rollenregister) && !Store.rolle.admin);
+  const listeFehlt = Store.fehlendeListen.has(CC_LISTS.rollenregister) || keinZugriff;
 
   // Gruppenmitglieder erscheinen nicht einzeln; die Gruppe wird dokumentiert.
   const mitglieder = g => b.zuweisungen.filter(m => m.memberType === "Group" && m.rolleId === g.rolleId && m.ueberGruppe === (g.name || g.konto));
@@ -399,7 +401,9 @@ async function renderRollenregister(el) {
   const auswahl = new Set();
 
   el.innerHTML = `
-    ${listeFehlt ? hinweisBox(`Die Liste <strong>${esc(CC_LISTS.rollenregister)}</strong> gibt es noch nicht. Ein Administrator legt sie unter
+    ${keinZugriff ? hinweisBox(`Sie haben keinen Zugriff auf <strong>${esc(CC_LISTS.rollenregister)}</strong>. Das Register ist auf die
+      zentrale IT und Compliance beschränkt; angezeigt werden nur die Zuweisungen aus Entra ID.`, "info")
+      : listeFehlt ? hinweisBox(`Die Liste <strong>${esc(CC_LISTS.rollenregister)}</strong> gibt es noch nicht. Ein Administrator legt sie unter
       Einstellungen → „Listen prüfen / anlegen“ an. Bis dahin lässt sich nichts dokumentieren.`, "warn") : ""}
     <p class="hint">Das Register nach § 10 der Anlage: Konto, Rolle und Art der Zuweisung kommen live aus Entra ID,
       Zweck, genehmigende Stelle und Überprüfung pflegen Sie hier. Der KBR kann das Register einsehen (CSV).</p>
@@ -1099,6 +1103,7 @@ async function kbrBericht(box, quartalKey) {
 // ===========================================================================
 
 function pimArbeitsvorrat(register) {
+  if (!darfRollenVerwalten()) return [];
   const k = pimKonfig();
   const out = [];
   const nachDatum = {};

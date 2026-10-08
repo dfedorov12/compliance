@@ -170,6 +170,9 @@ const CC_SCHEMA = {
     singular: "Rollenzuweisung",
     titelLabel: "Schlüssel",
     suchTitel: r => `${r.Konto || ""} · ${r.Rolle || ""}`,
+    // Die Liste ist auf zentrale IT und Compliance beschränkt; Dashboard, Suche und
+    // Arbeitsvorrat laden sie nur für diese Rollen.
+    nurFuer: () => !!(Store.rolle.admin || Store.rolle.ciso || Store.rolle.auditor),
     sort: (a, b) => (a.Rolle || "").localeCompare(b.Rolle || "") || (a.Konto || "").localeCompare(b.Konto || ""),
     tabelle: ["Konto", "Rolle", "Zuweisung", "Zweck", "GenehmigtVon", "LetztePruefung"],
     felder: [

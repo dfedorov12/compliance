@@ -139,7 +139,8 @@ async function renderDashboard(el) {
         avvFaellig.length ? `${avvFaellig.length} Prüfung fällig` : "aktiv") +
       kachel("TOM umgesetzt", `${tom.filter(x => x.Status === "Umgesetzt").length}/${tom.length}`);
 
-    if (Store.fehlendeListen.size) {
+    // Nur Administratoren: Für andere kann „fehlt“ auch „keine Berechtigung“ heißen.
+    if (Store.fehlendeListen.size && Store.rolle.admin) {
       document.getElementById("dashListenHinweis").innerHTML = hinweisBox(
         `<strong>Noch nicht angelegt:</strong> ${esc([...Store.fehlendeListen].join(", "))}.
          ${Store.rolle.admin ? `Bitte unter <strong>Einstellungen → „Listen prüfen / anlegen“</strong> nachziehen.`

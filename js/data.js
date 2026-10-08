@@ -26,13 +26,22 @@ const Store = {
   // nicht existiert (404). So bleibt das Dashboard nutzbar, wenn nach einem
   // Update eine neue Liste hinzukommt; fehlendeListen zeigt den Hinweis an.
   fehlendeListen: new Set(),
+  // Listen mit eigenen Berechtigungen (z. B. Rollenregister), die der Benutzer
+  // nicht lesen darf. SharePoint meldet dann 403 oder, weil die Liste für ihn
+  // unsichtbar ist, 404.
+  ohneZugriff: new Set(),
 
   async loadOderLeer(entity) {
     try {
       const items = await this.load(entity);
       this.fehlendeListen.delete(CC_SCHEMA[entity].list);
+      this.ohneZugriff.delete(CC_SCHEMA[entity].list);
       return items;
     } catch (e) {
+      if (e.status === 403) {
+        this.ohneZugriff.add(CC_SCHEMA[entity].list);
+        return [];
+      }
       if (e.status === 404) {
         this.fehlendeListen.add(CC_SCHEMA[entity].list);
         return [];
@@ -44,7 +53,7 @@ const Store = {
   // Alle Datensätze aller Bereiche (für Suche und Arbeitsvorrat).
   async alle() {
     const out = {};
-    const bereiche = Object.keys(CC_SCHEMA).filter(e => !CC_SCHEMA[e].nurBeiBedarf);
+    const bereiche = Object.keys(CC_SCHEMA).filter(e => !CC_SCHEMA[e].nurBeiBedarf && (!CC_SCHEMA[e].nurFuer || CC_SCHEMA[e].nurFuer()));
     await Promise.all(bereiche.map(async e => { out[e] = await this.loadOderLeer(e); }));
     return out;
   },
