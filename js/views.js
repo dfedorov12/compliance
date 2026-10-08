@@ -163,7 +163,10 @@ async function renderDashboard(el) {
     { label: "Betroffenenanfragen", laden: async () => { const r = await Purview.subjectRightsRequests();
         return { wert: r.filter(x => x.status !== "closed").length, zusatz: `${r.length} insgesamt` }; } },
     { label: "Geräte konform", laden: async () => { const g = await Purview.geraeteKonformitaet();
-        return { wert: g.gesamt ? Math.round(g.konform / g.gesamt * 100) + " %" : "–", zusatz: `${g.nichtKonform} nicht konform` }; } }
+        return { wert: g.gesamt ? Math.round(g.konform / g.gesamt * 100) + " %" : "–", zusatz: `${g.nichtKonform} nicht konform` }; } },
+    { label: "Admin-Rollen (Anlage 3)", ansicht: "rollen", laden: async () => { const s = await pimStand({ mitExtras: false });
+        const kz = s.bewertung.kennzahlen;
+        return { wert: kz.hoch + kz.mittel, zusatz: `Feststellungen · ${kz.dauerhaft} dauerhaft, ${kz.berechtigt} über PIM` }; } }
   ];
   for (const k of liveKacheln) {
     const platz = document.createElement("div");
@@ -172,9 +175,10 @@ async function renderDashboard(el) {
     live.appendChild(platz);
     k.laden().then(r => {
       if (!r) { platz.remove(); return; }
-      platz.className = "stat-tile";
+      platz.className = "stat-tile" + (k.ansicht ? " stat-link" : "");
       platz.innerHTML = `<div class="stat-num">${esc(r.wert)}</div><div class="stat-label">${esc(k.label)}</div>
         <div class="stat-sub">${esc(r.zusatz || "")}</div>`;
+      if (k.ansicht) platz.onclick = () => zeigeAnsicht(k.ansicht);
     }).catch(e => {
       if (e.nichtLizenziert) { platz.remove(); return; }
       platz.className = "stat-tile stat-fehlt";
@@ -306,33 +310,42 @@ function zeigeAlert(a, neuladen) {
 // Legt zur Warnung eine Abweichung mit Korrekturmaßnahme im RMS-Register
 // „Wirksamkeit“ an (ISO 27001 10.2). Dort wird sie weiterbearbeitet.
 function oeffneRmsAbweichung(a) {
-  const frist = new Date(Date.now() + (a.schwere === "high" ? 7 : 14) * 86400000).toISOString().slice(0, 10);
+  rmsAbweichungDialog({
+    titel: "Warnung: " + a.titel,
+    beschreibung: `${a.beschreibung || ""}
+
+Quelle: ${a.quelle} · Schwere: ${a.schwere} · erstellt ${fmtDatumZeit(a.erstellt)}
+${a.webUrl || ""}`.trim(),
+    herkunftId: "m365:" + a.id,
+    frist: new Date(Date.now() + (a.schwere === "high" ? 7 : 14) * 86400000).toISOString().slice(0, 10),
+    platzhalter: "z. B. Konto sperren, Kennwort zurücksetzen, Regel anpassen"
+  });
+}
+
+// Gemeinsamer Dialog für Abweichungen aus dem Cockpit (M365-Warnungen,
+// Feststellungen zur Anlage 3). herkunftId verhindert Doppelungen im RMS.
+function rmsAbweichungDialog({ titel, beschreibung, herkunftId, frist, massnahmeVorschlag = "", platzhalter = "" }) {
   Dialog.zeige({
     titel: "Abweichung im RMS anlegen",
     breit: true,
-    html: `<p class="hint">Die Warnung wird im RMS unter „Wirksamkeit & Verbesserung“ als Abweichung mit
-        Korrekturmaßnahme erfasst und dort weiterverfolgt (Ursache, Wirksamkeitsprüfung).</p>
+    html: `<p class="hint">Die Abweichung wird im RMS unter „Wirksamkeit & Verbesserung“ mit Korrekturmaßnahme
+        erfasst und dort weiterverfolgt (Ursache, Wirksamkeitsprüfung).</p>
       <div class="form-grid">
-        <label class="span2">Titel *<input type="text" id="rmsTitel" value="${esc("Warnung: " + a.titel)}" maxlength="255"></label>
-        <label class="span2">Beschreibung<textarea id="rmsBesch" rows="4">${esc(
-          `${a.beschreibung || ""}
-
-Quelle: ${a.quelle} · Schwere: ${a.schwere} · erstellt ${fmtDatumZeit(a.erstellt)}
-${a.webUrl || ""}`.trim())}</textarea></label>
-        <label class="span2">Korrekturmaßnahme *<input type="text" id="rmsMassnahme" placeholder="z. B. Konto sperren, Kennwort zurücksetzen, Regel anpassen"></label>
+        <label class="span2">Titel *<input type="text" id="rmsTitel" value="${esc(titel)}" maxlength="255"></label>
+        <label class="span2">Beschreibung<textarea id="rmsBesch" rows="4">${esc(beschreibung || "")}</textarea></label>
+        <label class="span2">Korrekturmaßnahme *<input type="text" id="rmsMassnahme" value="${esc(massnahmeVorschlag)}" placeholder="${esc(platzhalter)}"></label>
         <label>Verantwortlich<input type="email" id="rmsWer" list="cc-personen" autocomplete="off" value="${esc(Store.benutzer.email)}"></label>
-        <label>Frist<input type="date" id="rmsFrist" value="${frist}"></label>
+        <label>Frist<input type="date" id="rmsFrist" value="${esc(frist || "")}"></label>
       </div>`,
     aktionen: [{ label: "Im RMS anlegen", klasse: "btn-primary", onClick: async modal => {
-      const titel = modal.querySelector("#rmsTitel").value.trim();
+      const titelNeu = modal.querySelector("#rmsTitel").value.trim();
       const massnahme = modal.querySelector("#rmsMassnahme").value.trim();
-      if (!titel || !massnahme) { toast("Bitte Titel und Korrekturmaßnahme angeben."); return; }
+      if (!titelNeu || !massnahme) { toast("Bitte Titel und Korrekturmaßnahme angeben."); return; }
       modal.querySelectorAll("#modalActions button").forEach(b => { b.disabled = true; });
       try {
         const neu = await Rms.abweichungAnlegen({
-          titel, massnahme,
+          titel: titelNeu, massnahme, herkunftId,
           beschreibung: modal.querySelector("#rmsBesch").value,
-          herkunftId: "m365:" + a.id,
           verantwortlich: modal.querySelector("#rmsWer").value.trim(),
           frist: modal.querySelector("#rmsFrist").value
         });
@@ -340,9 +353,9 @@ ${a.webUrl || ""}`.trim())}</textarea></label>
         const link = Rms.link("wirksamkeit", { eintrag: (neu && neu.id) || "" });
         toast("Abweichung im RMS angelegt.");
         if (confirm("Abweichung im RMS angelegt. Jetzt im RMS öffnen?")) window.open(link, "_blank", "noopener");
-      } catch (e) {
+      } catch (err) {
         modal.querySelectorAll("#modalActions button").forEach(b => { b.disabled = false; });
-        toast("Anlegen im RMS fehlgeschlagen: " + e.message, 8000);
+        toast("Anlegen im RMS fehlgeschlagen: " + err.message, 8000);
       }
     } }]
   });
@@ -686,15 +699,22 @@ function renderDatenpannenHinweis(el) {
 // Berichte
 // ===========================================================================
 
+// Wunschbericht für die nächste Darstellung (z. B. aus der Ansicht „Admin-Rollen“).
+let _berichtWunsch = null;
+
 async function renderBerichte(el) {
+  const wunsch = _berichtWunsch;
+  _berichtWunsch = null;
   el.innerHTML = `
     <div class="card no-print">
       <h2>Berichte</h2>
-      <p class="hint">Datenschutzbericht und Nachweis-Snapshot aller Microsoft-365-Signale zum Stichtag.
+      <p class="hint">Datenschutzbericht, Nachweis-Snapshot aller Microsoft-365-Signale zum Stichtag und die
+         Quartalsübersicht zu den Admin-Rollen für den Konzernbetriebsrat.
          ISMS-Berichte (SoA, Risiken, C-Level-Report) erstellt das RMS.</p>
       <div class="btn-reihe">
         <button class="btn-primary" id="btnBericht">Datenschutzbericht</button>
         <button class="btn-secondary" id="btnSnapshot">Nachweis-Snapshot M365</button>
+        <button class="btn-secondary" id="btnKbr">Übersicht für den KBR (Anlage 3 § 9)</button>
         <a class="btn-secondary" href="${esc(Rms.link("abdeckung", { modus: "soa" }))}" target="_blank" rel="noopener">SoA im RMS ↗</a>
         <a class="btn-secondary" href="${esc(Rms.link("cockpit"))}" target="_blank" rel="noopener">ISMS-Kennzahlen im RMS ↗</a>
         <button class="btn-csv" id="btnDruck">Drucken / als PDF speichern</button>
@@ -705,7 +725,9 @@ async function renderBerichte(el) {
   document.getElementById("btnDruck").onclick = () => window.print();
   document.getElementById("btnBericht").onclick = () => datenschutzBericht(document.getElementById("berichtInhalt"));
   document.getElementById("btnSnapshot").onclick = () => nachweisSnapshot(document.getElementById("berichtInhalt"));
-  datenschutzBericht(document.getElementById("berichtInhalt"));
+  document.getElementById("btnKbr").onclick = () => kbrBericht(document.getElementById("berichtInhalt"));
+  if (wunsch === "kbr") kbrBericht(document.getElementById("berichtInhalt"));
+  else datenschutzBericht(document.getElementById("berichtInhalt"));
 }
 
 async function datenschutzBericht(box) {

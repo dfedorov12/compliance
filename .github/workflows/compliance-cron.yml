@@ -1,7 +1,8 @@
 name: Compliance Cron
 
-# Erinnerungen (Aufgaben, Control-Pruefungen, VVT/AVV), Ueberwachung der
-# 72-Stunden-Meldefrist und montags der Wochenbericht.
+# Erinnerungen (VVT/AVV-Pruefungen, Fristen der Betroffenenanfragen), montags
+# der Datenschutz-Wochenbericht, taeglich das Sichern der PIM-Aktivierungen
+# (Anlage 3 der KBV).
 # Ohne gesetzte Secrets endet der Lauf als gruener No-op.
 
 on:

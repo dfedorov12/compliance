@@ -14,18 +14,19 @@ M365-Nachweise je Annex-A-Control und die Datenschutz-Register.
 |---|---|
 | **Dashboard** | ISMS-Kennzahlen aus dem RMS (SoA-Umsetzung, hohe Risiken, offene Maßnahmen und Abweichungen), Datenschutz, **Arbeitsvorrat** mit Fristen aus Datenschutz und RMS, Live-Kacheln aus M365 |
 | **Microsoft 365** | Sicherheits- und DLP-Warnungen (bearbeiten/schließen, **als Abweichung ins RMS**), Überwachungsprotokoll-Suche, Entra-Verzeichnisprotokoll, Vertraulichkeits- und Aufbewahrungsbezeichnungen, eDiscovery-Fälle, bedingter Zugriff, privilegierte Rollen, Geräte, Secure Score |
+| **Admin-Rollen** | PIM nach **Anlage 3 der KBV** (Rollen- und Berechtigungskonzept): Prüfung gegen zugelassene Rollen, PIM-Pflicht, Höchstzahlen, Notfallkonten und Externe; Rollenregister (§ 10) mit jährlicher Überprüfung; dauerhafte Zuweisungen mit einem Klick in PIM überführen; Hausstandard für Aktivierungsregeln prüfen und anwenden; eigene Rollen aktivieren, Anträge genehmigen |
 | **M365-Nachweise** | Alle 93 Annex-A-Controls mit SoA-Stand aus dem RMS; für 38 davon Live-Wert aus M365, mit Stichtag sicherbar (einzeln oder alle); die SoA im RMS zeigt den jüngsten Nachweis |
 | **Datenschutz** | VVT (Art. 30), TOM (Art. 32), Auftragsverarbeiter (Art. 28), **Betroffenenanfragen** (Art. 15–21) mit Fristberechnung, Suchumfang aus dem VVT, eDiscovery-Fall und Antwortentwürfen; Datenpannen laufen über Ticket und RMS-Vorfälle |
-| **Berichte** | Datenschutzbericht (druck-/PDF-fähig) und Nachweis-Snapshot aller M365-Signale; SoA und ISMS-Berichte im RMS |
-| **Bedienung** | Globale Suche (`/`, inkl. RMS-Risiken), Sammelbearbeitung, Personenauswahl aus dem Verzeichnis, Direktlinks, gemerkte Filter |
-| **Cron** | Datenschutz-Prüffristen, Antwortfristen der Betroffenenanfragen, Datenschutz-Wochenbericht |
+| **Berichte** | Datenschutzbericht (druck-/PDF-fähig), Nachweis-Snapshot aller M365-Signale und die Quartalsübersicht für den KBR nach Anlage 3 § 9 (ohne Namen); SoA und ISMS-Berichte im RMS |
+| **Bedienung** | Globale Suche (`/`, inkl. Rollenregister und RMS-Risiken), Sammelbearbeitung, Personenauswahl aus dem Verzeichnis, Direktlinks, gemerkte Filter |
+| **Cron** | Datenschutz-Prüffristen, Antwortfristen der Betroffenenanfragen, Datenschutz-Wochenbericht, Sichern der PIM-Aktivierungen |
 
 ## Zusammenspiel mit dem RMS
 
 | Richtung | Was |
 |---|---|
 | RMS → Cockpit (lesen) | SoA (`soa-config.json` auf /sites/IT), Risiken und Register „Wirksamkeit“ (Listen auf /sites/ISMS) |
-| Cockpit → RMS (schreiben) | Abweichung mit Korrekturmaßnahme aus einer M365-Warnung, im Format des RMS (`Quelle = Microsoft 365 (Compliance-Cockpit)`) |
+| Cockpit → RMS (schreiben) | Abweichung mit Korrekturmaßnahme aus einer M365-Warnung oder einer Feststellung zur Anlage 3, im Format des RMS (`Quelle = Microsoft 365 (Compliance-Cockpit)`, `HerkunftId = m365:…` bzw. `anlage3:…`) |
 | Cockpit → RMS (Links) | `?ansicht=risiken&risiko=ID`, `?ansicht=wirksamkeit&eintrag=ID`, `?ansicht=abdeckung&modus=soa&control=A.x` |
 | RMS → Cockpit (Links) | `?ansicht=nachweise&control=A.x` aus der SoA; die SoA zeigt den jüngsten Eintrag aus `Compliance_M365Nachweise` |
 
@@ -46,10 +47,12 @@ js/data.js            Cache, CRUD, Provisionierung, Konfiguration, Rollen
 js/ui.js              Tabellen, Filter, CSV, Dialoge, generische Listenansicht
 js/purview.js         Microsoft-365-Abfragen und Signal-Definitionen
 js/rms.js             Anbindung an das RMS (lesen, Abweichung anlegen, Direktlinks)
+js/pim.js             Rollenkatalog Anlage 3, PIM-Schnittstellen, Prüfung gegen die Anlage
 js/views.js           Dashboard, Microsoft 365, Datenschutz, Berichte
 js/nachweise.js       M365-Nachweise je Annex-A-Control
 js/arbeit.js          Arbeitsvorrat, globale Suche, Direktlinks, Nachweisbereich
 js/anfragen.js        Register für Betroffenenanfragen inkl. Antwortentwürfe
+js/rollen.js          Ansicht Admin-Rollen, Rollenregister, KBR-Übersicht
 js/demo.js            Demo-Modus (?demo=1) mit Beispieldaten
 js/app.js             Start, Navigation, Einstellungen
 setup-compliance.ps1  Entra-App: Redirect-URIs, Berechtigungen, Admin-Zustimmung

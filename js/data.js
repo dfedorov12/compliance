@@ -44,7 +44,8 @@ const Store = {
   // Alle Datensätze aller Bereiche (für Suche und Arbeitsvorrat).
   async alle() {
     const out = {};
-    await Promise.all(Object.keys(CC_SCHEMA).map(async e => { out[e] = await this.loadOderLeer(e); }));
+    const bereiche = Object.keys(CC_SCHEMA).filter(e => !CC_SCHEMA[e].nurBeiBedarf);
+    await Promise.all(bereiche.map(async e => { out[e] = await this.loadOderLeer(e); }));
     return out;
   },
 

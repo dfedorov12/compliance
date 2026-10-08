@@ -14,6 +14,7 @@ Richtlinienmanagementsystem (RMS, rms.dihag.de) angebunden:
 | Microsoft 365 / Purview live | Cockpit | Warnungen, Protokolle, Bezeichnungen, eDiscovery, Identität, Geräte, Secure Score |
 | M365-Nachweise je Control | Cockpit (Liste `Compliance_M365Nachweise`) | Live-Wert sichern; die SoA im RMS zeigt ihn an |
 | VVT, TOM, AVV, Betroffenenanfragen | Cockpit | eigene Register |
+| Admin-Rollen und PIM (Anlage 3 der KBV) | Entra ID / PIM für die Zuweisungen, Cockpit für Rollenregister und Prüfung | Prüfung gegen die Anlage, Register, Umstellung, Aktivierungsregeln, KBR-Übersicht |
 
 So gibt es jeden Datensatz genau einmal. Zwei Risikoregister oder zwei SoAs wären im Audit ein
 eigener Befund.
@@ -28,6 +29,7 @@ eigener Befund.
 | Plattform | **Einzelseitige Anwendung (SPA)**, Redirect-URIs `https://compliance.dihag.de/` und `https://compliance.dihag.de/redirect.html` |
 | SharePoint-Site | `dihag.sharepoint.com/sites/IT` |
 | RMS | rms.dihag.de; für die Anbindung braucht der angemeldete Benutzer Lesezugriff auf `/sites/ISMS` (Risiken, Wirksamkeit) |
+| PIM | Entra ID P2 oder Entra ID Governance im Mandanten; jede Person, die PIM nutzt (berechtigt, Genehmiger, Prüfer), braucht eine Lizenz |
 | Lizenzen | Microsoft Priva ist nicht bereitgestellt (daher das eigene Register für Betroffenenanfragen), eDiscovery (Premium) braucht eine E5-/Add-on-Lizenz |
 
 ## 3. Einrichtung in drei Schritten
@@ -42,7 +44,9 @@ Das Skript trägt Redirect-URIs und alle delegierten Graph-Berechtigungen ein un
 Administratorzustimmung für den Mandanten. Mit `-NurLesen` werden nur Leseberechtigungen
 angefordert (dann bitte auch `erlaubeSchreibaktionen: false` in `js/config.js` setzen).
 
-Angeforderte Berechtigungen (alle **delegiert**, keine Anwendungsberechtigungen):
+Angeforderte Berechtigungen (alle **delegiert**, keine Anwendungsberechtigungen). Delegierte Rechte
+wirken nur im Rahmen der Entra-Rolle des angemeldeten Benutzers: Wer nicht „Administrator für
+privilegierte Rollen“ ist, kann über das Cockpit auch keine PIM-Regeln ändern.
 
 | Berechtigung | Wofür |
 |---|---|
@@ -61,7 +65,11 @@ Angeforderte Berechtigungen (alle **delegiert**, keine Anwendungsberechtigungen)
 | `eDiscovery.ReadWrite.All` | eDiscovery-Fälle lesen und anlegen |
 | `SubjectRightsRequest.ReadWrite.All` | Betroffenenanfragen |
 | `Policy.Read.All` | Richtlinien für bedingten Zugriff |
-| `RoleManagement.Read.Directory` | Privilegierte Verzeichnisrollen |
+| `RoleManagement.Read.Directory` | Verzeichnisrollen, PIM-Zuweisungen und Aktivierungsregeln lesen |
+| `RoleEligibilitySchedule.ReadWrite.Directory`, `RoleAssignmentSchedule.ReadWrite.Directory` | Zuweisungen in PIM überführen, eigene Rollen aktivieren und zurückgeben, Anträge genehmigen |
+| `RoleManagementPolicy.ReadWrite.Directory` | Hausstandard auf die Aktivierungsregeln anwenden |
+| `GroupMember.Read.All` | Mitglieder von Gruppen, denen eine Rolle zugewiesen ist (zählen bei den Höchstzahlen mit) |
+| `AccessReview.Read.All` | eingerichtete Zugriffsüberprüfungen anzeigen |
 | `DeviceManagementConfiguration.Read.All`, `DeviceManagementManagedDevices.Read.All` | Intune |
 
 ### 3.2 Listen anlegen
@@ -69,7 +77,8 @@ Angeforderte Berechtigungen (alle **delegiert**, keine Anwendungsberechtigungen)
 App öffnen → **Einstellungen → „Listen prüfen / anlegen“**. Angelegt werden:
 
 `Compliance_VVT`, `Compliance_TOM`, `Compliance_AVV`, `Compliance_Anfragen`,
-`Compliance_M365Nachweise`, `Compliance_Konfiguration` sowie die Dokumentbibliothek `Compliance_Nachweise`.
+`Compliance_M365Nachweise`, `Compliance_Rollenregister`, `Compliance_PIMAktivierungen`,
+`Compliance_Konfiguration` sowie die Dokumentbibliothek `Compliance_Nachweise`.
 
 Kommt mit einem Update eine neue Liste hinzu, zeigt das Dashboard einen Hinweis, bis sie angelegt
 ist. Die übrigen Bereiche arbeiten bis dahin normal weiter.
@@ -81,7 +90,8 @@ ist. Die übrigen Bereiche arbeiten bis dahin normal weiter.
 
 > **Datenschutz der Listen:** `Compliance_Anfragen` enthält personenbezogene Daten. Ihre Berechtigung
 > sollte auf DSB und Compliance-Kreis beschränkt werden (SharePoint → Listeneinstellungen →
-> Berechtigungen, Vererbung unterbrechen).
+> Berechtigungen, Vererbung unterbrechen). Gleiches gilt für `Compliance_Rollenregister` und
+> `Compliance_PIMAktivierungen` (Angaben zu Administratoren): Zugriff für zentrale IT und Compliance.
 
 Die Spalten stammen aus `js/schema.js`. Wird das Schema erweitert, legt derselbe Knopf die
 fehlenden Spalten nach; vorhandene Daten bleiben erhalten.
@@ -97,11 +107,51 @@ fehlenden Spalten nach; vorhandene Daten bleiben erhalten.
 > Solange keine Administratoren eingetragen sind, gilt der angemeldete Benutzer als
 > Administrator (Erstinstallation). Nach dem ersten Speichern greift die Liste.
 
+### 3.4 PIM nach Anlage 3 einführen
+
+Die Ansicht **Admin-Rollen → Übersicht** führt in fünf Schritten durch die Einführung und zeigt bei
+jedem Schritt, ob er erledigt ist:
+
+1. **Notfallkonten hinterlegen** (Einstellungen → „Rollen- und Berechtigungskonzept“): zwei
+   cloudbasierte Konten mit dauerhafter Rolle „Globaler Administrator“ (§ 5). Solange sie fehlen,
+   sperrt das Cockpit die Umstellung der globalen Administratoren, damit sich der Mandant nicht
+   aussperrt.
+2. **Aktivierungsregeln** (Reiter „Aktivierungsregeln“): Hausstandard festlegen und auf die Rollen
+   anwenden. Vorschlag: höchstens 8 Stunden, kritische Rollen (Globaler Administrator, Administrator
+   für privilegierte Rollen, Privilegierter Authentifizierungsadministrator, Administrator für
+   bedingten Zugriff) höchstens 4 Stunden mit Genehmigung; immer MFA und Begründung. Für die
+   Genehmigung mindestens zwei Genehmiger eintragen.
+3. **Umstellung auf PIM** (Reiter „Umstellung auf PIM“): dauerhafte Zuweisungen auswählen und
+   überführen. Das Cockpit legt die Berechtigung an und entfernt danach die dauerhafte Zuweisung.
+   Wo eine dauerhafte Zuweisung nötig bleibt, im Register unter „Begründete Ausnahme“ begründen.
+4. **Rollenregister** (§ 10): Zweck und genehmigende Stelle je Zuweisung eintragen, gleichartige
+   Zuweisungen über „Zweck und Genehmigung setzen“ gemeinsam. Die Purview-Rollen
+   „Überwachungsleser“ und „Überwachungs-Manager“ als manuelle Einträge ergänzen.
+5. **Überprüfung** (§ 11): Zuweisungen mindestens jährlich mit „Überprüfung bestätigen“ quittieren;
+   den Funktionstest der Notfallkonten dokumentieren. Beides erscheint rechtzeitig im Arbeitsvorrat.
+
+Die Prüfung zählt nach § 2.3 nur **gleichzeitig aktive personenbezogene** Inhaber: dauerhafte
+Zuweisungen und gerade aktivierte Rollen, auch über Gruppen. Nur berechtigte Personen,
+Notfallkonten, Dienstprinzipale und als „Technisch“ markierte Konten zählen nicht. Wesentliche
+Feststellungen lassen sich mit „Ins RMS“ als Abweichung mit Korrekturmaßnahme übernehmen.
+
+**Aktivieren:** Unter „Meine Rollen“ aktiviert jede berechtigte Person ihre Rolle mit Zweck nach § 8,
+Begründung und Dauer. Wer im Entra-Portal aktiviert, beginnt die Begründung mit dem Zweck in eckigen
+Klammern, z. B. „[Fehleranalyse und Fehlerbehebung] Postfachregel prüfen“. Sonst ordnet das Cockpit
+den Zweck nach Stichworten zu oder führt ihn als „nicht zugeordnet“.
+
+**KBR-Übersicht (§ 9):** Berichte → „Übersicht für den KBR“, Quartal wählen, drucken oder als CSV.
+Sie enthält Anzahl der Aktivierungen, Zweckkategorien, verwendete Rollen und wesentliche
+Abweichungen, aber keine Namen. Weil PIM Aktivierungen nur etwa 30 Tage vorhält, sichert das
+Cockpit sie in `Compliance_PIMAktivierungen`, beim Öffnen der Ansicht und täglich über den Cron
+(Anwendungsberechtigung `RoleAssignmentSchedule.Read.Directory` für die Cron-App).
+
 ## 4. Rollen
 
 | Rolle | Rechte |
 |---|---|
-| **Administrator** | Einstellungen, Listen und Kataloge, Löschen von Datensätzen |
+| **Administrator** | Einstellungen, Listen und Kataloge, Löschen von Datensätzen; Rollenregister, Umstellung auf PIM und Aktivierungsregeln |
+| **CISO** (zusätzlich) | Rollenregister, Umstellung auf PIM und Aktivierungsregeln wie ein Administrator |
 | **DSB** | erhält Datenschutz-Erinnerungen und Meldeentwürfe |
 | **CISO** | erhält Eskalationen und den Wochenbericht |
 | **Auditor** | lesender Zugriff, Berichte |
@@ -133,7 +183,7 @@ Empfehlung: Leseberechtigung auf die Listen für den Compliance-Kreis beschränk
 | Funktion | Wo | Nutzen |
 |---|---|---|
 | **Arbeitsvorrat** | Dashboard | Fristen aus VVT, AV-Verträgen und Betroffenenanfragen sowie aus dem RMS (Risiko-Reviews, Risiko- und Korrekturmaßnahmen) in einer Liste, filterbar nach „nur meine“, Zeitraum und Art. Klick öffnet den Eintrag, RMS-Einträge (↗) im RMS. |
-| **Globale Suche** | Kopfzeile, Taste `/` | Durchsucht Datenschutz, M365-Nachweise und die Risiken im RMS, Treffer mit Fundstelle. |
+| **Globale Suche** | Kopfzeile, Taste `/` | Durchsucht Datenschutz, Rollenregister, M365-Nachweise und die Risiken im RMS, Treffer mit Fundstelle. |
 | **Sammelbearbeitung** | jede Tabelle | Einträge ankreuzen, dann Verantwortliche, Status oder Termine für alle gleichzeitig setzen. Leere Felder bleiben unverändert, Frist und Risikowert werden je Eintrag neu berechnet. |
 | **Personenauswahl** | Personenfelder | Vorschläge aus dem Verzeichnis statt E-Mail-Adressen abzutippen. |
 | **Direktlinks** | „Link kopieren“ im Dialog | Link auf genau diesen Eintrag, z. B. für Teams. Erinnerungsmails verlinken ebenso direkt und funktionieren auch über die Anmeldung hinweg. |
@@ -153,13 +203,16 @@ GitHub Actions ruft täglich `cron/compliance_cron.py` auf (App-only, Client-Cre
 Benötigt werden die Repository-Secrets `CC_TENANT_ID`, `CC_CLIENT_ID`, `CC_CLIENT_SECRET`
 der App-Registrierung **„DIHAG Cron-Job"** (`089bf9ad-2d9a-4cbc-b85d-88b4484af0bb`) mit den
 Anwendungsberechtigungen `Sites.ReadWrite.All` (oder `Sites.Selected` + Grant auf `/sites/IT`)
-und `Mail.Send`. Details: [cron/README.md](cron/README.md).
+und `Mail.Send`, für Schritt 4 zusätzlich `RoleAssignmentSchedule.Read.Directory`.
+Details: [cron/README.md](cron/README.md).
 
 Der Lauf erledigt:
 
 1. Datenschutz: fällige VVT-/AV-Prüfungen und auslaufende Verträge an den DSB
 2. Betroffenenanfragen: Hinweis 7 und 2 Tage vor Fristende, Eskalation nach Ablauf
 3. montags: Datenschutz-Wochenbericht an DSB, CISO und Administratoren
+4. PIM-Aktivierungen nach `Compliance_PIMAktivierungen` sichern (für die KBR-Übersicht, läuft auch
+   bei abgeschalteten Erinnerungen)
 
 Jede Mail verlinkt direkt auf den betroffenen Eintrag. Erinnerungen zu Risiken, Maßnahmen und
 Vorfällen verschickt der Cron des RMS.
@@ -182,6 +235,11 @@ alles ab. Ohne gesetzte Secrets endet der Lauf als grüner No-op. Manueller Test
 * Die Anbindung ans RMS liest mit den Rechten des angemeldeten Benutzers. Wer `/sites/ISMS` nicht
   lesen darf, sieht die ISMS-Kacheln nicht; das Cockpit funktioniert sonst normal weiter.
 * Ein Browser kann nichts zeitgesteuert tun; alles Terminliche erledigt der Cron-Job.
+* **Admin-Rollen:** Die Purview-Rollengruppen (Überwachungsleser, Überwachungs-Manager) und die
+  funktionalen SharePoint-Rollen sind über Graph nicht lesbar; sie stehen nur als manuelle Einträge
+  im Register. PIM für Gruppen (Mitgliedschaft auf Zeit) wertet das Cockpit nicht aus. Das Genehmigen
+  von Anträgen nutzt eine Beta-Schnittstelle von Microsoft; klappt es nicht, öffnet das Cockpit das
+  Entra-Portal.
 
 ## 8. Änderungen am Datenmodell
 

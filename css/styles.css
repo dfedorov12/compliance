@@ -386,3 +386,14 @@ a.stat-link { text-decoration: none; color: inherit; transition: border-color .1
 a.stat-link:hover { border-color: var(--azur); }
 .btn-reihe-klein { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 a.btn-ghost-dark, a.btn-primary, a.btn-secondary { text-decoration: none; display: inline-block; }
+
+/* Einführung in Schritten (Admin-Rollen) */
+.schritte { list-style: none; padding: 0; margin: 8px 0 16px; display: grid; gap: 8px; }
+.schritt { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--card); }
+.schritt-nr { flex: 0 0 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-weight: 700; background: var(--info-bg); color: var(--azur); }
+.schritt-ok .schritt-nr { background: var(--green-bg); color: var(--green); }
+.schritt-offen .schritt-nr { background: var(--yellow-bg); color: var(--yellow); }
+.schritt-text { flex: 1; font-size: 14px; }
+div.stat-link { cursor: pointer; }

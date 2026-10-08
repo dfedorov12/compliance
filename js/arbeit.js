@@ -11,7 +11,8 @@ const CC_ORT = {
   tom:       { ansicht: "datenschutz", tab: "tom" },
   avv:       { ansicht: "datenschutz", tab: "avv" },
   anfragen:  { ansicht: "datenschutz", tab: "anfragen" },
-  nachweise: { ansicht: "nachweise" }
+  nachweise: { ansicht: "nachweise" },
+  rollenregister: { ansicht: "rollen", tab: "register" }
 };
 
 // Wunsch-Unterreiter für die nächste Darstellung einer Ansicht (z. B. nach Direktlink).
@@ -59,7 +60,7 @@ async function oeffneEintrag(entity, id, { ansichtWechseln = false } = {}) {
   const rec = items.find(i => String(i.id) === String(id));
   if (!rec) { toast("Eintrag nicht gefunden. Wurde er gelöscht?"); return; }
   const neuladen = () => zeigeAnsicht(_aktiveAnsicht);
-  const oeffner = { anfragen: zeigeAnfrage }[entity];
+  const oeffner = { anfragen: zeigeAnfrage, rollenregister: oeffneRegisterAusListe }[entity];
   if (oeffner) oeffner(rec, neuladen);
   else oeffneEditor(entity, rec, neuladen);
 }
@@ -84,6 +85,8 @@ async function sammleArbeitsvorrat() {
     .forEach(a => neu("avv", a, a.Ablauf, "Vertragsende", a.Title, a.Verantwortlich));
   d.anfragen.filter(a => anfrageOffen(a) && a.Frist)
     .forEach(a => neu("anfragen", a, a.Frist, "Betroffenenanfrage", `${a.Title} · ${a.Art}`, a.Verantwortlich || dsb, { dringend: true }));
+  // Jährliche Überprüfung der Admin-Rollen und Notfalltest (Anlage 3).
+  liste.push(...pimArbeitsvorrat(d.rollenregister));
   // ISMS-Fristen aus dem RMS (Risiko-Reviews, Maßnahmen); öffnen sich dort.
   liste.push(...await rmsArbeitsvorrat());
 
@@ -147,7 +150,8 @@ async function renderArbeitsvorrat(box) {
     box.querySelectorAll("[data-idx]").forEach(tr => {
       tr.onclick = () => {
         const e = sichtbar[Number(tr.dataset.idx)];
-        if (e.extern) window.open(e.extern, "_blank", "noopener");
+        if (e.aktion) e.aktion();
+        else if (e.extern) window.open(e.extern, "_blank", "noopener");
         else oeffneEintrag(e.entity, e.id);
       };
     });
@@ -175,7 +179,7 @@ async function globaleSuche(begriff) {
       const auszug = (pos > 40 ? "…" : "") + text.slice(Math.max(0, pos - 40), pos + q.length + 60) +
         (pos + q.length + 60 < text.length ? "…" : "");
       treffer.push({
-        entity, id: it.id, bereich: def.label, titel: it.Title,
+        entity, id: it.id, bereich: def.label, titel: def.suchTitel ? def.suchTitel(it) : it.Title,
         untertitel: it.Bezeichnung || it.Art || it.Kategorie || it.Leistung || "",
         feld: feld.label, auszug, status: it.Status
       });
@@ -214,7 +218,7 @@ async function zeigeSuche(begriff) {
           </button>`).join("")}
           ${liste.length > 30 ? `<p class="muted">… und ${liste.length - 30} weitere. Bitte Suchbegriff eingrenzen.</p>` : ""}
         </div>`).join("")
-    : `<p class="muted">Keine Treffer im Datenschutz, bei den M365-Nachweisen und in den RMS-Risiken.</p>`;
+    : `<p class="muted">Keine Treffer im Datenschutz, im Rollenregister, bei den M365-Nachweisen und in den RMS-Risiken.</p>`;
   document.querySelectorAll(".suchtreffer-zeile").forEach(b => {
     b.onclick = () => {
       if (b.dataset.extern) { window.open(b.dataset.extern, "_blank", "noopener"); return; }

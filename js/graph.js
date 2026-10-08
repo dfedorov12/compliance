@@ -98,6 +98,7 @@ async function graphFetch(path, opts = {}) {
     const msg = data && data.error && data.error.message ? data.error.message : res.status + " " + res.statusText;
     const err = new Error(msg);
     err.status = res.status;
+    err.code = data && data.error ? data.error.code || "" : "";
     if (res.status === 401 || res.status === 403) {
       err.berechtigung = scopes;
     }

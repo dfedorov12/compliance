@@ -32,7 +32,7 @@
       </div>
       <div class="kopf-suche" id="kopfSuche" hidden>
         <input type="search" id="globalSuche" placeholder="Alles durchsuchen …" autocomplete="off"
-               title="Durchsucht Controls, Aufgaben, Risiken, Datenschutz und Vorfälle. Taste / springt hierher.">
+               title="Durchsucht Datenschutz, Rollenregister, M365-Nachweise und die Risiken im RMS. Taste / springt hierher.">
         <span class="kopf-suche-taste">/</span>
       </div>
       <div class="user-chip" id="userChip" hidden>
@@ -46,6 +46,7 @@
     <nav id="mainNav" hidden>
       <button class="nav-btn active" data-view="dashboard">Dashboard</button>
       <button class="nav-btn" data-view="purview">Microsoft 365</button>
+      <button class="nav-btn" data-view="rollen">Admin-Rollen</button>
       <button class="nav-btn" data-view="nachweise">M365-Nachweise</button>
       <button class="nav-btn" data-view="datenschutz">Datenschutz</button>
       <button class="nav-btn" data-view="berichte">Berichte</button>
@@ -59,6 +60,7 @@
   <main id="mainContent" hidden>
     <section id="view-dashboard" class="view active"></section>
     <section id="view-purview" class="view"></section>
+    <section id="view-rollen" class="view"></section>
     <section id="view-nachweise" class="view"></section>
     <section id="view-datenschutz" class="view"></section>
     <section id="view-berichte" class="view"></section>
@@ -93,9 +95,32 @@
           <li><strong>Klassifizierung &amp; Aufbewahrung</strong> – veröffentlichte Vertraulichkeits- und
               Aufbewahrungsbezeichnungen; neue Aufbewahrungsbezeichnungen können direkt angelegt werden.</li>
           <li><strong>eDiscovery</strong>, <strong>Betroffenenanfragen</strong>, <strong>Identität &amp;
-              Zugriff</strong> (bedingter Zugriff, privilegierte Rollen), <strong>Geräte</strong> und
+              Zugriff</strong> (bedingter Zugriff, Verzeichnisrollen), <strong>Geräte</strong> und
               <strong>Secure Score</strong>.</li>
         </ul>
+
+        <h3>Admin-Rollen und PIM (Anlage 3)</h3>
+        <p>Die Ansicht setzt das <strong>Rollen- und Berechtigungskonzept</strong> der KBV (Anlage 3) mit Microsoft Entra
+           Privileged Identity Management um. Sie liest alle Zuweisungen von Admin-Rollen live aus Entra ID und prüft sie
+           gegen die Anlage: zugelassene Rollen, PIM-Pflicht, Höchstzahlen gleichzeitig aktiver Inhaber, Notfallkonten,
+           Externe, Register und jährliche Überprüfung.</p>
+        <ul>
+          <li><strong>Übersicht</strong>: Einführung in fünf Schritten, Feststellungen mit Bezug auf die Anlage
+              (wesentliche lassen sich als Abweichung ins RMS übernehmen) und Soll-Ist je Rolle.</li>
+          <li><strong>Rollenregister</strong> (§ 10): Konto, Rolle und Art der Zuweisung kommen aus Entra ID; Zweck,
+              genehmigende Stelle, Ausnahmen und Überprüfung pflegen Sie hier, auch für mehrere Einträge auf einmal.
+              Purview-Rollen werden als manuelle Einträge geführt.</li>
+          <li><strong>Umstellung auf PIM</strong> (§ 2.2): dauerhafte Zuweisungen mit einem Klick in PIM-Berechtigungen
+              überführen. Globale Administratoren erst, wenn die Notfallkonten hinterlegt sind.</li>
+          <li><strong>Aktivierungsregeln</strong>: Hausstandard für Höchstdauer, MFA, Begründung, Genehmigung und
+              Benachrichtigung festlegen, jede Rolle dagegen prüfen und ihn anwenden.</li>
+          <li><strong>Meine Rollen</strong>: eigene Rollen mit Zweck nach § 8 aktivieren und zurückgeben, Anträge anderer
+              genehmigen.</li>
+        </ul>
+        <p>PIM hält Aktivierungen nur etwa 30 Tage vor. Das Cockpit sichert sie deshalb in
+           <em>Compliance_PIMAktivierungen</em>; daraus entsteht unter <strong>Berichte</strong> die
+           <strong>Quartalsübersicht für den KBR</strong> (§ 9) ohne Namen. Wer per Portal aktiviert, beginnt die
+           Begründung am besten mit dem Zweck in eckigen Klammern, z. B. „[Fehleranalyse und Fehlerbehebung] …“.</p>
 
         <h3>M365-Nachweise</h3>
         <p>Alle 93 Controls des Anhangs A mit ihrem Stand aus der SoA des RMS. Für 38 davon gibt es ein
@@ -177,10 +202,12 @@
   <script src="js/ui.js?v=85d48654"></script>
   <script src="js/purview.js?v=85d48654"></script>
   <script src="js/rms.js?v=85d48654"></script>
+  <script src="js/pim.js?v=85d48654"></script>
   <script src="js/views.js?v=85d48654"></script>
   <script src="js/nachweise.js?v=85d48654"></script>
   <script src="js/arbeit.js?v=85d48654"></script>
   <script src="js/anfragen.js?v=85d48654"></script>
+  <script src="js/rollen.js?v=85d48654"></script>
   <script src="js/demo.js?v=85d48654"></script>
   <script src="js/app.js?v=85d48654"></script>
 </body>

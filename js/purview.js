@@ -400,10 +400,20 @@ const CC_SIGNALE = {
       const s = await Purview.benutzerStatistik();
       return { text: `${s.gesamt} Konten, davon ${s.gaeste} Gäste und ${s.deaktiviert} deaktiviert`, daten: s };
     } },
+  // Stand nach Anlage 3 (PIM). Ohne PIM-Daten die einfache Rollenzählung.
   rollen: { label: CC_SIGNAL_LABELS.rollen, laden: async () => {
-      const r = await Purview.privilegierteRollen();
-      const ga = r.find(x => x.name === "Globaler Administrator" || x.name === "Global Administrator");
-      return { text: `${r.length} besetzte Verzeichnisrollen` + (ga ? `, ${ga.mitglieder.length} globale Administratoren` : ""), daten: r };
+      try {
+        const s = await pimStand({ mitExtras: false });
+        const kz = s.bewertung.kennzahlen;
+        return { text: `${kz.personen} Personen mit Admin-Rollen; ${kz.berechtigt} Zuweisungen über PIM berechtigt, ` +
+          `${kz.dauerhaft} dauerhaft (PIM-Rollen), ${s.k.notfallkonten.length} Notfallkonten; Anlage 3: ${kz.hoch} hohe und ` +
+          `${kz.mittel} mittlere Feststellungen, Rollenregister zu ${kz.dokumentiertQuote} % dokumentiert`, daten: kz };
+      } catch (e) {
+        if (e.name === "BerechtigungFehlt") throw e;
+        const r = await Purview.privilegierteRollen();
+        const ga = r.find(x => x.name === "Globaler Administrator" || x.name === "Global Administrator");
+        return { text: `${r.length} besetzte Verzeichnisrollen` + (ga ? `, ${ga.mitglieder.length} globale Administratoren` : ""), daten: r };
+      }
     } },
   geraete: { label: CC_SIGNAL_LABELS.geraete, laden: async () => {
       const g = await Purview.geraeteKonformitaet();

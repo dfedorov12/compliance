@@ -217,9 +217,13 @@ function eingabeHtml(f, wert) {
   return `<input type="text" data-feld="${f.name}" value="${esc(wert)}" maxlength="255"${ro}>`;
 }
 
-// Bearbeiten-Dialog aus dem Schema erzeugen.
-function oeffneEditor(entity, datensatz, onGespeichert) {
-  const def = CC_SCHEMA[entity];
+// Bearbeiten-Dialog aus dem Schema erzeugen. opts.gesperrt: zusätzliche Felder,
+// die nur angezeigt werden (z. B. Werte, die live aus Entra ID kommen);
+// opts.titel und opts.html ergänzen Überschrift und Kopf des Dialogs.
+function oeffneEditor(entity, datensatz, onGespeichert, opts = {}) {
+  const def = { ...CC_SCHEMA[entity] };
+  const gesperrt = opts.gesperrt || [];
+  def.felder = def.felder.map(f => gesperrt.includes(f.name) ? { ...f, readonly: true } : f);
   const werte = datensatz || {};
   const neu = !werte.id;
 
@@ -272,8 +276,8 @@ function oeffneEditor(entity, datensatz, onGespeichert) {
   }
 
   Dialog.zeige({
-    titel: neu ? `Neu: ${def.singular}` : `${def.singular} bearbeiten`,
-    html: `<div class="form-grid">${felderHtml}</div>`,
+    titel: opts.titel || (neu ? `Neu: ${def.singular}` : `${def.singular} bearbeiten`),
+    html: (opts.html || "") + `<div class="form-grid">${felderHtml}</div>`,
     aktionen,
     breit: true,
     link: neu ? null : linkZuEintrag(entity, werte.id)

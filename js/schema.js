@@ -158,8 +158,70 @@ const CC_SCHEMA = {
       { name: "Zeit",        label: "Zeitpunkt (ISO)", type: "text", readonly: true },
       { name: "ErfasstVon",  label: "Gesichert von", type: "person" }
     ]
+  },
+
+  // Rollenregister nach Anlage 3 § 10. Zuweisungen aus Entra ID kommen live aus
+  // PIM; die Liste ergänzt, was PIM nicht kennt (Zweck, genehmigende Stelle,
+  // Überprüfung, Ausnahmen). Title = principalId|rolleId. Purview-Rollen und
+  // andere nicht lesbare Rollen werden als manuelle Einträge geführt.
+  rollenregister: {
+    list: CC_LISTS.rollenregister,
+    label: "Rollenregister",
+    singular: "Rollenzuweisung",
+    titelLabel: "Schlüssel",
+    suchTitel: r => `${r.Konto || ""} · ${r.Rolle || ""}`,
+    sort: (a, b) => (a.Rolle || "").localeCompare(b.Rolle || "") || (a.Konto || "").localeCompare(b.Konto || ""),
+    tabelle: ["Konto", "Rolle", "Zuweisung", "Zweck", "GenehmigtVon", "LetztePruefung"],
+    felder: [
+      { name: "Title",          label: "Schlüssel (Konto-ID|Rollen-ID)", type: "text", required: true, readonly: true },
+      { name: "Konto",          label: "Benutzerkonto bzw. technische Identität", kurz: "Konto", type: "text", required: true },
+      { name: "Kontoart",       label: "Kontoart", type: "select", options: () => CC_KONTOARTEN,
+        hint: "„Technisch“ oder „Extern“ übersteuern die automatische Erkennung, z. B. für Synchronisationskonten oder Dienstleisterkonten." },
+      { name: "Rolle",          label: "Rolle", type: "text", required: true },
+      { name: "RolleId",        label: "Rollen-ID (Template)", type: "text" },
+      { name: "Zuweisung",      label: "Art der Zuweisung", type: "select", options: () => CC_ZUWEISUNGSARTEN },
+      { name: "Zweck",          label: "Betrieblicher Zweck / Zuständigkeitsbereich", type: "note", span2: true, required: true },
+      { name: "GenehmigtVon",   label: "Zuständige genehmigende Stelle", kurz: "Genehmigt von", type: "text", required: true,
+        hint: "z. B. Leitung IT, CISO oder Geschäftsführung" },
+      { name: "ZugewiesenAm",   label: "Zugewiesen am", type: "date" },
+      { name: "Befristung",     label: "Befristet bis", type: "date" },
+      { name: "Ausnahme",       label: "Begründete Ausnahme", type: "note", span2: true,
+        hint: "Dauerhafte Aktivierung (§ 2.2), gleichwertige Rolle (§ 12 Abs. 2) oder unbefristeter externer Zugriff (§ 7). Leer = keine Ausnahme." },
+      { name: "Eigentuemer",    label: "Eigentümer (technische Identität)", type: "person" },
+      { name: "LetztePruefung", label: "Letzte Überprüfung", kurz: "Geprüft", type: "date" },
+      { name: "GeprueftVon",    label: "Geprüft von", type: "person" },
+      { name: "Entzogen",       label: "Entzogen am", type: "date" },
+      { name: "Quelle",         label: "Quelle", type: "select", options: () => ["Entra ID", "manuell"] }
+    ]
+  },
+
+  // Gesicherte PIM-Aktivierungen. PIM selbst hält sie nur etwa 30 Tage vor; die
+  // Quartalsübersicht an den KBR (Anlage 3 § 9) braucht sie länger.
+  aktivierungen: {
+    list: CC_LISTS.aktivierungen,
+    label: "PIM-Aktivierungen",
+    singular: "Aktivierung",
+    titelLabel: "Antrag",
+    nurBeiBedarf: true,
+    sort: (a, b) => (b.Zeit || "").localeCompare(a.Zeit || ""),
+    tabelle: ["Zeit", "Rolle", "Konto", "Zweck", "Dauer", "Status"],
+    felder: [
+      { name: "Title",       label: "Antrags-ID", type: "text", required: true },
+      { name: "Rolle",       label: "Rolle", type: "text" },
+      { name: "RolleId",     label: "Rollen-ID", type: "text" },
+      { name: "Konto",       label: "Konto", type: "text" },
+      { name: "Zeit",        label: "Zeitpunkt (ISO)", type: "text" },
+      { name: "Dauer",       label: "Beantragte Dauer", type: "text" },
+      { name: "Zweck",       label: "Zweck (Anlage 3 § 8)", type: "text" },
+      { name: "Begruendung", label: "Begründung", type: "note", span2: true },
+      { name: "Ticket",      label: "Ticket", type: "text" },
+      { name: "Status",      label: "Status", type: "text" }
+    ]
   }
 };
+
+const CC_KONTOARTEN = ["Person", "Extern", "Technisch", "Notfallkonto", "Gruppe"];
+const CC_ZUWEISUNGSARTEN = ["berechtigt (PIM)", "aktiv (befristet)", "dauerhaft", "aktiviert"];
 
 const CC_ANFRAGE_ARTEN = [
   "Auskunft (Art. 15)", "Berichtigung (Art. 16)", "Löschung (Art. 17)", "Einschränkung (Art. 18)",

@@ -53,7 +53,13 @@ const CC_SCOPES = {
   privacy:     [CC_CONFIG.erlaubeSchreibaktionen ? "SubjectRightsRequest.ReadWrite.All" : "SubjectRightsRequest.Read.All"],
   geraete:     ["DeviceManagementConfiguration.Read.All", "DeviceManagementManagedDevices.Read.All"],
   richtlinien: ["Policy.Read.All"],
-  rollen:      ["RoleManagement.Read.Directory"]
+  rollen:      ["RoleManagement.Read.Directory"],
+  // PIM (Anlage 3): Rollen in PIM überführen, eigene Rollen aktivieren, Anträge
+  // genehmigen. Wirkt nur im Rahmen der Entra-Rolle des angemeldeten Benutzers.
+  pim:         ["RoleEligibilitySchedule.ReadWrite.Directory", "RoleAssignmentSchedule.ReadWrite.Directory"],
+  pimRegeln:   ["RoleManagementPolicy.ReadWrite.Directory"],
+  gruppen:     ["GroupMember.Read.All"],
+  zugriffspruefungen: ["AccessReview.Read.All"]
 };
 
 // Namen der SharePoint-Listen (zentral, damit Provisionierung und App identisch sind).
@@ -66,5 +72,7 @@ const CC_LISTS = {
   avv:        "Compliance_AVV",
   anfragen:   "Compliance_Anfragen",
   nachweise:  "Compliance_M365Nachweise",
+  rollenregister: "Compliance_Rollenregister",
+  aktivierungen:  "Compliance_PIMAktivierungen",
   konfig:     "Compliance_Konfiguration"
 };

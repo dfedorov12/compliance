@@ -69,9 +69,38 @@
           mailSender: "administrator@dihag.com",
           erinnerungTageVorher: 14, eskalationTageNach: 7, erinnerungenAktiv: true,
           rmsUrl: "https://rms.dihag.de/",
-          organisation: "DIHAG Foundry Group (Demo)"
+          organisation: "DIHAG Foundry Group (Demo)",
+          pim: {
+            notfallkonten: ["notfall1@dihag.onmicrosoft.com", "notfall2@dihag.onmicrosoft.com"],
+            adminKennzeichen: [], externeDomains: [], verantwortlich: "fedorov@dihag.com",
+            notfallGeprueft: tage(-100), notfallIntervall: 90,
+            standard: { genehmiger: ["fedorov@dihag.com", "it@dihag.com"] }
+          }
         }) }
-    ]
+    ],
+    [CC_LISTS.rollenregister]: [
+      { id: neueId(), Title: "u-fedorov|62e90394-69f5-4237-9190-012177145e10", Konto: "fedorov@dihag.com", Kontoart: "Person",
+        Rolle: "Globaler Administrator", RolleId: "62e90394-69f5-4237-9190-012177145e10", Zuweisung: "berechtigt (PIM)",
+        Zweck: "Leitung IT-Betrieb und Informationssicherheit, Vertretung bei Störungen", GenehmigtVon: "Geschäftsführung",
+        ZugewiesenAm: tage(-400), LetztePruefung: tage(-20), GeprueftVon: "fedorov@dihag.com", Quelle: "Entra ID" },
+      { id: neueId(), Title: "u-notfall1|62e90394-69f5-4237-9190-012177145e10", Konto: "notfall1@dihag.onmicrosoft.com", Kontoart: "Notfallkonto",
+        Rolle: "Globaler Administrator", RolleId: "62e90394-69f5-4237-9190-012177145e10", Zuweisung: "dauerhaft",
+        Zweck: "Notfallzugriff bei Aussperrung (§ 5), Zugangsdaten im Tresor der IT-Leitung", GenehmigtVon: "Geschäftsführung",
+        Ausnahme: "Notfallzugriffskonto, nach § 2.2 von PIM ausgenommen", LetztePruefung: tage(-100), GeprueftVon: "fedorov@dihag.com", Quelle: "Entra ID" },
+      { id: neueId(), Title: "u-it|29232cdf-9323-42fd-ade2-1d097af3e4de", Konto: "it@dihag.com", Kontoart: "Person",
+        Rolle: "Exchange-Administrator", RolleId: "29232cdf-9323-42fd-ade2-1d097af3e4de", Zuweisung: "dauerhaft",
+        Zweck: "Betrieb Exchange Online", GenehmigtVon: "Leitung IT", LetztePruefung: tage(-420), GeprueftVon: "fedorov@dihag.com", Quelle: "Entra ID" },
+      { id: neueId(), Title: "u-datenschutz|4a5d8f65-41da-4de4-8968-e035b65339cf", Konto: "datenschutz@dihag.com", Kontoart: "Person",
+        Rolle: "Berichtleseberechtigter", RolleId: "4a5d8f65-41da-4de4-8968-e035b65339cf", Zuweisung: "dauerhaft",
+        Zweck: "Datenschutzkontrollen (Anmelde- und Nutzungsberichte)", GenehmigtVon: "Leitung IT", LetztePruefung: tage(-60), GeprueftVon: "fedorov@dihag.com", Quelle: "Entra ID" },
+      { id: neueId(), Title: "manuell-1", Konto: "datenschutz@dihag.com", Kontoart: "Person", Rolle: "Überwachungsleser (Audit Reader)",
+        Zuweisung: "dauerhaft", Zweck: "Audit-Suche für Datenschutzkontrollen", GenehmigtVon: "Leitung IT", LetztePruefung: tage(-60),
+        GeprueftVon: "fedorov@dihag.com", Quelle: "manuell" },
+      { id: neueId(), Title: "u-altadmin|fe930be7-5e62-47db-91af-98c3a49a38b1", Konto: "alt.admin@dihag.com", Kontoart: "Person",
+        Rolle: "Benutzeradministrator", RolleId: "fe930be7-5e62-47db-91af-98c3a49a38b1", Zuweisung: "dauerhaft",
+        Zweck: "Benutzerverwaltung Standort Süd", GenehmigtVon: "Leitung IT", LetztePruefung: tage(-200), Quelle: "Entra ID" }
+    ],
+    [CC_LISTS.aktivierungen]: []
   };
 
   // --- Graph-/SharePoint-Ebene ersetzen ------------------------------------
@@ -263,6 +292,149 @@
       { id: "g2", name: "iOS – Mindestversion und PIN", plattform: "iosCompliancePolicy", erstellt: "", geaendert: new Date(Date.now() - 120 * 86400000).toISOString(), version: 2 },
       { id: "g3", name: "Android – Arbeitsprofil", plattform: "androidWorkProfileCompliancePolicy", erstellt: "", geaendert: "", version: 1 }
     ]
+  });
+
+  // --- PIM (Anlage 3) nachbilden ------------------------------------------
+  const ROLLE = {
+    ga: "62e90394-69f5-4237-9190-012177145e10", pra: "e8611ab8-c189-46e8-94e1-60213ab1f814",
+    sec: "194ae4cb-b126-40b2-bd5b-6091b380977d", comp: "17315797-102d-40b4-93e0-432062caca18",
+    exo: "29232cdf-9323-42fd-ade2-1d097af3e4de", intune: "3a2c62db-5318-420d-8d74-23affee5d9d5",
+    spo: "f28a1f50-f6e7-4571-818b-6a12f2af6b6c", leser: "f2ef992c-3afb-46b9-b7cf-a126ee74c451",
+    secleser: "5d6b6bb7-de71-4623-b4af-96380a352509", helpdesk: "729827e3-9c14-49f7-bb1b-9608f156bbb8",
+    teams: "69091246-20e8-4a56-aa4d-066075b2a7a8", bericht: "4a5d8f65-41da-4de4-8968-e035b65339cf",
+    dirw: "9360feb5-f418-4baa-8175-e2a00bac4301", dirr: "88d8e3e3-8f55-4a1e-953a-9b9898b8876b",
+    billing: "b0f54661-2d74-4c50-afa3-1ec803f12efe", wissen: "b5a8dcf3-09d5-43a9-a639-8e29ef291470",
+    ca: "b1be1c3e-b65d-4f19-8427-f6fa0d97feb9"
+  };
+  const konten = {
+    "u-notfall1": { upn: "notfall1@dihag.onmicrosoft.com", name: "Notfallkonto 1" },
+    "u-notfall2": { upn: "notfall2@dihag.onmicrosoft.com", name: "Notfallkonto 2" },
+    "u-admin": { upn: "administrator@dihag.com", name: "Administrator" },
+    "u-fedorov": { upn: "fedorov@dihag.com", name: "Denis Fedorov" },
+    "u-it": { upn: "it@dihag.com", name: "IT-Service" },
+    "u-datenschutz": { upn: "datenschutz@dihag.com", name: "Datenschutz DIHAG" },
+    "u-hr": { upn: "hr@dihag.com", name: "Personalabteilung" },
+    "u-kbr1": { upn: "kbr.vorsitz@dihag.com", name: "KBR Vorsitz" },
+    "u-kbr2": { upn: "kbr.it@dihag.com", name: "KBR IT-Ausschuss" },
+    "u-einkauf": { upn: "einkauf@dihag.com", name: "Einkauf" },
+    "u-ext": { upn: "m.partner_dienstleister.de#EXT#@dihag.onmicrosoft.com", name: "M. Partner (Dienstleister)", gast: true },
+    "u-hd1": { upn: "helpdesk1@dihag.com", name: "Helpdesk 1" },
+    "u-hd2": { upn: "helpdesk2@dihag.com", name: "Helpdesk 2" },
+    "u-hd3": { upn: "helpdesk3@dihag.com", name: "Helpdesk 3" }
+  };
+  const isoTage = n => new Date(Date.now() + n * 86400000).toISOString();
+  let pimInst = [
+    ["u-notfall1", ROLLE.ga, "dauerhaft"], ["u-notfall2", ROLLE.ga, "dauerhaft"], ["u-admin", ROLLE.ga, "dauerhaft"],
+    ["u-fedorov", ROLLE.ga, "berechtigt"], ["u-fedorov", ROLLE.pra, "berechtigt"], ["u-fedorov", ROLLE.sec, "berechtigt"],
+    ["u-fedorov", ROLLE.sec, "aktiviert"], ["u-fedorov", ROLLE.comp, "berechtigt"],
+    ["u-it", ROLLE.exo, "dauerhaft"], ["u-it", ROLLE.intune, "berechtigt"], ["u-it", ROLLE.spo, "berechtigt"], ["u-it", ROLLE.ca, "berechtigt"],
+    ["u-datenschutz", ROLLE.bericht, "dauerhaft"], ["u-datenschutz", ROLLE.comp, "berechtigt"],
+    ["u-hr", ROLLE.wissen, "dauerhaft"], ["u-kbr1", ROLLE.leser, "berechtigt"], ["u-kbr2", ROLLE.secleser, "berechtigt"],
+    ["u-einkauf", ROLLE.billing, "dauerhaft"], ["u-ext", ROLLE.teams, "berechtigt"],
+    ["g-helpdesk", ROLLE.helpdesk, "dauerhaft"],
+    ["sp-sync", ROLLE.dirw, "dauerhaft"], ["sp-cron", ROLLE.dirr, "dauerhaft"]
+  ].map(([pid, rolle, art], i) => ({ pid, rolle, art, start: isoTage(-300 + i * 9),
+    ende: art === "aktiviert" ? new Date(Date.now() + 3 * 3600000).toISOString() : "" }));
+  const pimGruppen = { "g-helpdesk": { name: "SG-Helpdesk-Admins", mitglieder: ["u-hd1", "u-hd2", "u-hd3"] } };
+  const pimDienste = { "sp-sync": "Entra Connect Sync", "sp-cron": "DIHAG Cron-Job" };
+
+  const demoZeile = x => {
+    const typ = konten[x.pid] ? "user" : pimGruppen[x.pid] ? "group" : "servicePrincipal";
+    const k = konten[x.pid] || {};
+    const name = k.name || (pimGruppen[x.pid] || {}).name || pimDienste[x.pid];
+    return {
+      principalId: x.pid, principalTyp: typ, konto: k.upn || name, name, appId: "", rolleId: x.rolle, scope: "/",
+      art: x.art, start: x.start, ende: x.ende, memberType: "Direct",
+      userType: k.gast ? "Guest" : typ === "user" ? "Member" : "", aktiviert: true, synchronisiert: false,
+      rolleName: (anlage3Rolle(x.rolle) || {}).name || (x.rolle === ROLLE.wissen ? "Knowledge Administrator" : x.rolle)
+    };
+  };
+  const demoRegeln = {};
+  CC_ANLAGE3_ROLLEN.forEach((r, i) => {
+    const gut = [ROLLE.exo, ROLLE.intune, ROLLE.spo, ROLLE.leser, ROLLE.secleser].includes(r.id);
+    const ziel = (id, typ, extra) => ({ "@odata.type": "#microsoft.graph." + typ, id,
+      target: { caller: id.includes("EndUser") ? "EndUser" : "Admin", operations: ["All"], level: id.includes("Eligibility") ? "Eligibility" : "Assignment", inheritableSettings: [], enforcedSettings: [] }, ...extra });
+    demoRegeln[r.id] = { policyId: "DirectoryRole_demo_" + i, regeln: {
+      Expiration_EndUser_Assignment: ziel("Expiration_EndUser_Assignment", "unifiedRoleManagementPolicyExpirationRule", { isExpirationRequired: true, maximumDuration: gut ? "PT4H" : "PT8H" }),
+      Enablement_EndUser_Assignment: ziel("Enablement_EndUser_Assignment", "unifiedRoleManagementPolicyEnablementRule", { enabledRules: gut ? ["MultiFactorAuthentication", "Justification"] : ["MultiFactorAuthentication"] }),
+      Approval_EndUser_Assignment: ziel("Approval_EndUser_Assignment", "unifiedRoleManagementPolicyApprovalRule", { setting: { isApprovalRequired: false, approvalStages: [] } }),
+      Notification_Admin_EndUser_Assignment: ziel("Notification_Admin_EndUser_Assignment", "unifiedRoleManagementPolicyNotificationRule", { notificationRecipients: [], isDefaultRecipientsEnabled: true })
+    } };
+  });
+  const zwecke = CC_PIM_ZWECKE;
+  const demoAktivierungen = zufall(28, i => {
+    const rollen = [ROLLE.sec, ROLLE.comp, ROLLE.exo, ROLLE.leser, ROLLE.intune, ROLLE.ga, ROLLE.secleser];
+    const rolle = rollen[i % rollen.length];
+    const zweck = zwecke[[2, 3, 1, 6, 0, 3, 5][i % 7]];
+    return {
+      Title: "req-" + i, Rolle: (anlage3Rolle(rolle) || {}).name, RolleId: rolle,
+      Konto: ["fedorov@dihag.com", "it@dihag.com", "datenschutz@dihag.com", "kbr.vorsitz@dihag.com"][i % 4],
+      Zeit: isoTage(-i * 4 - 1), Dauer: ["PT2H", "PT4H", "PT1H"][i % 3], Zweck: i % 9 === 8 ? CC_ZWECK_OHNE : zweck,
+      Begruendung: i % 9 === 8 ? "Kurz nachsehen" : `[${zweck}] Beispielaktivierung ${i}`, Ticket: "", Status: i % 11 === 5 ? "Denied" : "Provisioned"
+    };
+  });
+  const offeneGenehmigungen = [{ id: "pa1", approvalId: "ap1", rolleId: ROLLE.ca, rolle: "Administrator für bedingten Zugriff",
+    wer: "it@dihag.com", zeit: isoTage(-0.1), begruendung: "[Administration und technischer Support] Ausnahme für Scanner-Konto anlegen", dauer: "PT2H" }];
+
+  Object.assign(Pim, {
+    ich: async () => ({ id: "u-fedorov", userPrincipalName: "fedorov@dihag.com", displayName: "Denis Fedorov" }),
+    lade: async () => {
+      const zeilen = pimInst.map(demoZeile);
+      pimInst.filter(x => pimGruppen[x.pid]).forEach(x => pimGruppen[x.pid].mitglieder.forEach(m =>
+        zeilen.push({ ...demoZeile({ ...x, pid: m }), memberType: "Group", ueberGruppe: pimGruppen[x.pid].name })));
+      return { zeit: Date.now(), pimVerfuegbar: true, zeilen, definitionen: {}, hinweise: [] };
+    },
+    regeln: async () => demoRegeln,
+    letzteAnmeldung: async id => id === "u-notfall2" ? isoTage(-10) : isoTage(-200),
+    hatPimLizenz: async id => id !== "u-kbr2",
+    zugriffspruefungen: async () => [],
+    ueberfuehren: async z => {
+      const x = pimInst.find(i => i.pid === z.principalId && i.rolle === z.rolleId && (i.art === "dauerhaft" || i.art === "befristet"));
+      if (x) x.art = "berechtigt";
+      await new Promise(res => setTimeout(res, 150));
+    },
+    regelnAnwenden: async (rolleId, std) => {
+      const r = demoRegeln[rolleId].regeln;
+      const kritisch = std.kritisch.includes(rolleId);
+      r.Expiration_EndUser_Assignment.maximumDuration = `PT${kritisch ? std.dauerKritisch : std.dauer}H`;
+      const soll = new Set(r.Enablement_EndUser_Assignment.enabledRules);
+      if (std.mfa) soll.add("MultiFactorAuthentication");
+      if (std.begruendung) soll.add("Justification");
+      if (std.ticket) soll.add("Ticketing");
+      r.Enablement_EndUser_Assignment.enabledRules = [...soll];
+      const hinweise = [];
+      if (kritisch && std.genehmigungKritisch) {
+        if (std.genehmiger.length) r.Approval_EndUser_Assignment.setting = { isApprovalRequired: true,
+          approvalStages: [{ primaryApprovers: std.genehmiger.map(m => ({ userId: m })) }] };
+        else hinweise.push("Genehmigung nicht gesetzt: im Hausstandard sind keine Genehmiger hinterlegt.");
+      }
+      r.Notification_Admin_EndUser_Assignment.notificationRecipients = [...new Set([...r.Notification_Admin_EndUser_Assignment.notificationRecipients, ...std.benachrichtigung])];
+      return { geaendert: ["Demo-Modus: Regeln nur im Browser angepasst"], hinweise };
+    },
+    meineRollen: async () => {
+      const meine = pimInst.filter(x => x.pid === "u-fedorov");
+      const name = id => (anlage3Rolle(id) || {}).name || id;
+      return {
+        berechtigt: meine.filter(x => x.art === "berechtigt").map(x => ({ rolleId: x.rolle, rolle: name(x.rolle), scope: "/", ende: "", ueberGruppe: false })),
+        aktiv: meine.filter(x => x.art !== "berechtigt").map(x => ({ rolleId: x.rolle, rolle: name(x.rolle), scope: "/",
+          art: x.art === "aktiviert" ? "Activated" : "Assigned", ende: x.ende })),
+        antraege: []
+      };
+    },
+    aktivieren: async ({ rolleId, zweck, text, stunden }) => {
+      const kritisch = pimKonfig().standard.kritisch.includes(rolleId) && demoRegeln[rolleId].regeln.Approval_EndUser_Assignment.setting.isApprovalRequired;
+      if (!kritisch) pimInst.push({ pid: "u-fedorov", rolle: rolleId, art: "aktiviert", start: new Date().toISOString(),
+        ende: new Date(Date.now() + stunden * 3600000).toISOString() });
+      demoAktivierungen.unshift({ Title: "req-" + Date.now(), Rolle: (anlage3Rolle(rolleId) || {}).name, RolleId: rolleId,
+        Konto: "fedorov@dihag.com", Zeit: new Date().toISOString(), Dauer: `PT${stunden}H`, Zweck: zweck,
+        Begruendung: `[${zweck}] ${text}`, Ticket: "", Status: kritisch ? "PendingApproval" : "Provisioned" });
+      return { status: kritisch ? "PendingApproval" : "Provisioned" };
+    },
+    deaktivieren: async rolleId => { pimInst = pimInst.filter(x => !(x.pid === "u-fedorov" && x.rolle === rolleId && x.art === "aktiviert")); },
+    antragZurueckziehen: async () => {},
+    zuGenehmigen: async () => offeneGenehmigungen,
+    entscheide: async antrag => { offeneGenehmigungen.splice(offeneGenehmigungen.indexOf(antrag), 1); toast("Demo-Modus: Entscheidung nicht an Entra ID gesendet."); },
+    aktivierungenAusPim: async () => demoAktivierungen.map(a => ({ ...a }))
   });
 
   document.addEventListener("DOMContentLoaded", () => {

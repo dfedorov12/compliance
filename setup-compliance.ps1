@@ -47,7 +47,9 @@ $Scopes = @(
     "SensitivityLabel.Read"                  # Vertraulichkeitsbezeichnungen (fuer den Benutzer)
     "InformationProtectionPolicy.Read"       # Bezeichnungen, alte Schnittstelle (Rueckfall)
     "Policy.Read.All"                        # Bedingter Zugriff
-    "RoleManagement.Read.Directory"          # Privilegierte Verzeichnisrollen
+    "RoleManagement.Read.Directory"          # Verzeichnisrollen, PIM-Zuweisungen und -Regeln lesen
+    "GroupMember.Read.All"                   # Mitglieder rollenzuweisbarer Gruppen (Anlage 3)
+    "AccessReview.Read.All"                  # Zugriffsueberpruefungen anzeigen (Anlage 3 Par. 11)
     "DeviceManagementConfiguration.Read.All" # Geraetekonformitaetsrichtlinien
     "DeviceManagementManagedDevices.Read.All"# Verwaltete Geraete
 )
@@ -58,7 +60,13 @@ if ($NurLesen) {
     $Scopes += @("SecurityAlert.ReadWrite.All",   # Warnungen bearbeiten/schliessen
                  "RecordsManagement.ReadWrite.All", # Aufbewahrungsbezeichnungen anlegen
                  "eDiscovery.ReadWrite.All",      # eDiscovery-Faelle anlegen
-                 "SubjectRightsRequest.ReadWrite.All")
+                 "SubjectRightsRequest.ReadWrite.All",
+                 # PIM nach Anlage 3: in PIM ueberfuehren, eigene Rollen aktivieren,
+                 # Antraege genehmigen, Aktivierungsregeln setzen. Delegiert, wirkt
+                 # also nur im Rahmen der Entra-Rolle des angemeldeten Benutzers.
+                 "RoleEligibilitySchedule.ReadWrite.Directory",
+                 "RoleAssignmentSchedule.ReadWrite.Directory",
+                 "RoleManagementPolicy.ReadWrite.Directory")
 }
 
 Write-Host "== DIHAG Compliance – Einrichtung der App-Registrierung ==" -ForegroundColor Cyan
@@ -153,9 +161,9 @@ Write-Host ""
 Write-Host "Fertig. Naechste Schritte:" -ForegroundColor Cyan
 Write-Host "  1. App oeffnen: https://compliance.dihag.de/"
 Write-Host "  2. Einstellungen -> 'Listen pruefen / anlegen' (legt Listen + Bibliothek an)"
-Write-Host "  3. Einstellungen -> Administratoren, DSB, CISO eintragen und speichern"
-Write-Host "  4. Einstellungen -> 'Normenkatalog importieren'"
-Write-Host "  5. Einstellungen -> 'Berechtigungen pruefen' (zeigt, was der Tenant liefert)"
+Write-Host "  3. Einstellungen -> Administratoren, DSB, CISO und Notfallkonten eintragen und speichern"
+Write-Host "  4. Einstellungen -> 'Berechtigungen pruefen' (zeigt, was der Tenant liefert)"
+Write-Host "  5. Admin-Rollen -> Uebersicht (Einfuehrung PIM nach Anlage 3)"
 Write-Host ""
 Write-Host "Hinweis: Betroffenenanfragen (Priva) und eDiscovery Premium setzen die" -ForegroundColor Yellow
 Write-Host "entsprechende Lizenzierung voraus; ohne sie meldet Graph 403/404." -ForegroundColor Yellow

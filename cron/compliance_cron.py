@@ -7,6 +7,8 @@ kann (zeitgesteuerte Erinnerungen und Berichte):
   1. Datenschutz: faellige VVT- und AV-Vertragspruefungen an den DSB
   2. Betroffenenanfragen: Antwortfrist nach Art. 12 Abs. 3 DSGVO
   3. Montags: Datenschutz-Wochenbericht an DSB, CISO und Administratoren
+  4. PIM: Aktivierungen von Admin-Rollen sichern (Anlage 3 Par. 9 der KBV);
+     PIM selbst haelt sie nur etwa 30 Tage vor
 
 Controls/SoA, Risiken, Vorfaelle und Massnahmen fuehrt das RMS; dessen eigener
 Cron (richtlinienmanagementsystem/scripts/erinnerungen.mjs) erinnert dort.
@@ -42,6 +44,7 @@ L_VVT = "Compliance_VVT"
 L_AVV = "Compliance_AVV"
 L_TOM = "Compliance_TOM"
 L_ANFRAGEN = "Compliance_Anfragen"
+L_PIM = "Compliance_PIMAktivierungen"
 L_KONFIG = "Compliance_Konfiguration"
 
 GRAPH = "https://graph.microsoft.com/v1.0"
@@ -123,6 +126,13 @@ def patch_fields(list_name, item_id, fields):
         print(f"  [dry-run] PATCH {list_name}/{item_id}: {fields}")
         return
     api("PATCH", f"/sites/{SITE_ID}/lists/{list_name}/items/{item_id}/fields", fields)
+
+
+def create_item(list_name, fields):
+    if DRY_RUN:
+        print(f"  [dry-run] POST {list_name}: {fields.get('Title')}")
+        return
+    api("POST", f"/sites/{SITE_ID}/lists/{list_name}/items", {"fields": fields})
 
 
 def send_mail(to, subject, html):
@@ -334,10 +344,125 @@ def run_wochenbericht(k):
 
 
 # --------------------------------------------------------------------------
+# 4. PIM-Aktivierungen sichern (Anlage 3 Par. 9)
+# --------------------------------------------------------------------------
+
+# Gleiche Zwecke und Stichworte wie zweckAus() in js/pim.js.
+PIM_ZWECKE = [
+    "Aufrechterhaltung der IT-Sicherheit",
+    "Erkennung und Bearbeitung von Sicherheitsvorfällen",
+    "Administration und technischer Support",
+    "Fehleranalyse und Fehlerbehebung",
+    "Wiederherstellung von Systemen und Daten",
+    "Prüfung von Berechtigungen",
+    "Datenschutz- und Compliancekontrollen",
+    "Revision",
+    "Erfüllung gesetzlicher oder behördlicher Pflichten",
+    "Zulässige Beweissicherung",
+]
+PIM_STICHWORTE = [
+    (("vorfall", "incident", "angriff", "phishing", "kompromitt"), 1),
+    (("wiederherstell", "restore", "backup"), 4),
+    (("fehler", "störung", "stoerung", "problem"), 3),
+    (("berechtigung", "access review", "rezertifiz"), 5),
+    (("datenschutz", "compliance", "dsgvo"), 6),
+    (("revision", "audit"), 7),
+    (("behörd", "behoerd", "gesetz", "gericht"), 8),
+    (("beweis", "ediscovery", "sicherung von"), 9),
+    (("support", "administration", "einricht", "konfigur", "änderung", "aenderung"), 2),
+    (("sicherheit", "security"), 0),
+]
+
+
+def zweck_aus(text):
+    t = str(text or "").strip()
+    if t.startswith("[") and "]" in t:
+        kopf = t[1:t.index("]")].strip().lower()
+        for z in PIM_ZWECKE:
+            if z.lower() == kopf:
+                return z
+    s = t.lower()
+    for worte, idx in PIM_STICHWORTE:
+        if any(w in s for w in worte):
+            return PIM_ZWECKE[idx]
+    return "nicht zugeordnet"
+
+
+def pim_antraege():
+    basis = "/roleManagement/directory/roleAssignmentScheduleRequests"
+    for url in (basis + "?$expand=principal,roleDefinition", basis):
+        try:
+            out = []
+            while url:
+                d = api("GET", url)
+                out += d.get("value", [])
+                url = d.get("@odata.nextLink")
+            return out
+        except RuntimeError as e:
+            if "-> 400" not in str(e):
+                raise
+    return []
+
+
+def run_pim(k):
+    try:
+        vorhanden = {i["fields"].get("Title"): i for i in all_items(L_PIM)}
+    except RuntimeError as e:
+        if "-> 404" in str(e):
+            print(f"PIM: Liste {L_PIM} existiert noch nicht, übersprungen.")
+            return
+        raise
+    try:
+        antraege = pim_antraege()
+    except RuntimeError as e:
+        if "-> 401" in str(e) or "-> 403" in str(e):
+            print("PIM: keine Berechtigung (Anwendungsberechtigung RoleAssignmentSchedule.Read.Directory "
+                  "fehlt oder keine PIM-Lizenz), übersprungen.")
+            return
+        raise
+    neu = aktualisiert = 0
+    for x in antraege:
+        if x.get("action") != "selfActivate":
+            continue
+        p = x.get("principal") or {}
+        rd = x.get("roleDefinition") or {}
+        ablauf = (x.get("scheduleInfo") or {}).get("expiration") or {}
+        ticket = (x.get("ticketInfo") or {}).get("ticketNumber") or ""
+        felder = {
+            "Title": x["id"],
+            "Rolle": rd.get("displayName") or x.get("roleDefinitionId", ""),
+            "RolleId": x.get("roleDefinitionId", ""),
+            "Konto": p.get("userPrincipalName") or p.get("displayName") or x.get("principalId", ""),
+            "Zeit": x.get("createdDateTime", ""),
+            "Dauer": ablauf.get("duration") or "",
+            "Zweck": zweck_aus(x.get("justification")),
+            "Begruendung": x.get("justification") or "",
+            "Ticket": ticket,
+            "Status": x.get("status") or "",
+        }
+        alt = vorhanden.get(x["id"])
+        try:
+            if not alt:
+                create_item(L_PIM, felder)
+                neu += 1
+            elif (alt["fields"].get("Status") or "") != felder["Status"]:
+                patch_fields(L_PIM, alt["id"], {"Status": felder["Status"]})
+                aktualisiert += 1
+        except Exception as e:
+            print(f"WARN PIM-Antrag {x['id']}: {e}", file=sys.stderr)
+    print(f"PIM: {neu} Aktivierungen neu gesichert, {aktualisiert} aktualisiert")
+
+
+# --------------------------------------------------------------------------
 
 def main():
     k = load_konfig()
     print(f"Compliance-Cron gestartet {NOW.isoformat()} (dry-run={DRY_RUN})")
+    # Das Sichern der PIM-Aktivierungen ist keine Erinnerung und läuft immer.
+    try:
+        run_pim(k)
+    except Exception as e:
+        print(f"WARN run_pim: {e}", file=sys.stderr)
     if not k.get("erinnerungenAktiv", True):
         print("Erinnerungen sind in den App-Einstellungen deaktiviert – nichts zu tun.")
         return

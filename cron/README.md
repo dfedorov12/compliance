@@ -11,6 +11,11 @@ und der Wochenbericht.
 | 1 | VVT- und AV-Prüfungen sowie Verträge mit Ende in ≤ 60 Tagen | DSB |
 | 2 | Betroffenenanfragen: 7 und 2 Tage vor Fristende, nach Ablauf Eskalation | Bearbeiter + DSB / DSB, CISO, Administratoren |
 | 3 | montags: Datenschutz-Wochenbericht mit Anfragen, fälligen Prüfungen und TOM | DSB, CISO, Administratoren |
+| 4 | täglich: PIM-Aktivierungen nach `Compliance_PIMAktivierungen` sichern (Anlage 3 § 9) | keine Mail |
+
+Schritt 4 läuft auch, wenn die Erinnerungen in der App abgeschaltet sind. PIM hält Aktivierungen nur
+etwa 30 Tage vor; ohne diese Sicherung fehlen der Quartalsübersicht für den KBR Daten, sobald niemand
+die Ansicht „Admin-Rollen“ öffnet. Die App sichert beim Öffnen ebenfalls.
 
 Risiken, Maßnahmen und Vorfälle erinnert der Cron des RMS (`richtlinienmanagementsystem/scripts/erinnerungen.mjs`).
 
@@ -33,6 +38,8 @@ Anwendungsberechtigungen (Admin-Zustimmung erforderlich):
 * `Sites.ReadWrite.All` – oder besser `Sites.Selected` mit `write`-Grant auf `/sites/IT`
 * `Mail.Send` – empfohlen über eine Application Access Policy in Exchange Online auf das
   Postfach `administrator@dihag.com` beschränken
+* `RoleAssignmentSchedule.Read.Directory` – nur lesend, für Schritt 4. Fehlt sie, wird der Schritt
+  mit Hinweis übersprungen.
 
 ## Umgebungsvariablen (im Workflow gesetzt)
 

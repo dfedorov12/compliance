@@ -5,6 +5,7 @@
 const Ansichten = {
   dashboard:   { titel: "Dashboard", render: renderDashboard },
   purview:     { titel: "Microsoft 365", render: renderPurview },
+  rollen:      { titel: "Admin-Rollen", render: renderRollen },
   nachweise:   { titel: "M365-Nachweise", render: renderNachweise },
   datenschutz: { titel: "Datenschutz", render: renderDatenschutz },
   berichte:    { titel: "Berichte", render: renderBerichte },
@@ -156,6 +157,27 @@ async function renderEinstellungen(el) {
           </select></label>
       </div>
 
+      <h3>Rollen- und Berechtigungskonzept (Anlage 3)</h3>
+      <p class="hint">Grundlage für die Prüfung unter „Admin-Rollen“. Notfallkonten zählen nicht zu den Höchstzahlen und
+        werden nie in PIM überführt.</p>
+      <div class="settings-grid">
+        <label class="span2">Notfallzugriffskonten (UPN, kommagetrennt)
+          <input type="text" id="sPimNotfall" value="${esc(((k.pim || {}).notfallkonten || []).join(", "))}" placeholder="notfall1@….onmicrosoft.com, notfall2@….onmicrosoft.com">
+          <span class="feld-hint">§ 5: grundsätzlich zwei cloudbasierte Konten mit dauerhafter Rolle „Globaler Administrator“.</span></label>
+        <label>Kennzeichen für Administratorkonten
+          <input type="text" id="sPimAdmin" value="${esc(((k.pim || {}).adminKennzeichen || []).join(", "))}" placeholder="z. B. adm-, .admin@">
+          <span class="feld-hint">§ 2.4: Teil des UPN, an dem getrennte Admin-Konten erkennbar sind. Leer = keine Prüfung.</span></label>
+        <label>Weitere externe Domänen
+          <input type="text" id="sPimExtern" value="${esc(((k.pim || {}).externeDomains || []).join(", "))}" placeholder="z. B. dienstleister.de">
+          <span class="feld-hint">Gastkonten gelten automatisch als extern (§ 7).</span></label>
+        <label>Verantwortlich für das Rollenregister (zentrale IT)
+          <input type="email" id="sPimVerantw" list="cc-personen" value="${esc((k.pim || {}).verantwortlich || "")}"></label>
+        <label>Funktionstest der Notfallkonten alle (Tage)
+          <input type="number" id="sPimIntervall" min="7" max="365" value="${esc((k.pim || {}).notfallIntervall || 90)}"></label>
+        <label>Letzter Funktionstest am
+          <input type="date" id="sPimTest" value="${esc((k.pim || {}).notfallGeprueft || "")}"></label>
+      </div>
+
       <button class="btn-primary" id="btnSaveSettings">Einstellungen speichern</button>
     </div>
 
@@ -183,6 +205,8 @@ async function renderEinstellungen(el) {
       </table>
     </div>`;
 
+  personenListeLaden();
+
   document.getElementById("btnSaveSettings").onclick = async () => {
     const liste = id => teileListe(document.getElementById(id).value);
     try {
@@ -196,9 +220,17 @@ async function renderEinstellungen(el) {
         rmsUrl: document.getElementById("sRms").value.trim(),
         erinnerungTageVorher: Number(document.getElementById("sVorher").value) || 14,
         eskalationTageNach: Number(document.getElementById("sEskal").value) || 7,
-        erinnerungenAktiv: document.getElementById("sErinnerungen").value === "ja"
+        erinnerungenAktiv: document.getElementById("sErinnerungen").value === "ja",
+        pim: { ...(Store.konfig.pim || {}),
+          notfallkonten: liste("sPimNotfall").map(x => x.toLowerCase()),
+          adminKennzeichen: liste("sPimAdmin").map(x => x.toLowerCase()),
+          externeDomains: liste("sPimExtern").map(x => x.toLowerCase().replace(/^@/, "")),
+          verantwortlich: document.getElementById("sPimVerantw").value.trim().toLowerCase(),
+          notfallIntervall: Number(document.getElementById("sPimIntervall").value) || 90,
+          notfallGeprueft: document.getElementById("sPimTest").value }
       });
       Rms.invalidate();
+      Pim.invalidate();
       Store.bestimmeRolle();
       toast("Einstellungen gespeichert.");
     } catch (e) {
@@ -225,7 +257,9 @@ async function renderEinstellungen(el) {
             (<code>setup-compliance.ps1</code> erneut ausführen) und ob Ihr Konto auf
             <code>${esc(CC_CONFIG.sitePath)}</code> Listen verwalten darf.`, "warn")
         : "") + hinweisBox(`Angelegt werden alle Governance-Listen, die Konfigurationsliste und die
-        Dokumentbibliothek <strong>${esc(CC_CONFIG.nachweiseLibrary)}</strong> für Nachweisdateien.`, "info");
+        Dokumentbibliothek <strong>${esc(CC_CONFIG.nachweiseLibrary)}</strong> für Nachweisdateien.
+        <strong>${esc(CC_LISTS.rollenregister)}</strong> und <strong>${esc(CC_LISTS.aktivierungen)}</strong> enthalten Angaben zu
+        Administratoren: Berechtigung in SharePoint auf IT und Compliance beschränken.`, "info");
     } catch (e) {
       protokoll.innerHTML = fehlerBox(e, "Listen anlegen");
     }
@@ -272,6 +306,15 @@ async function renderEinstellungen(el) {
       { label: "Betroffenenanfragen (SubjectRightsRequest.*)", test: () => Purview.subjectRightsRequests() },
       { label: "Bedingter Zugriff (Policy.Read.All)", test: () => Purview.conditionalAccessPolicies() },
       { label: "Verzeichnisrollen (RoleManagement.Read.Directory)", test: () => Purview.privilegierteRollen() },
+      { label: "PIM: Zuweisungen lesen (Lizenz Entra ID P2)", test: async () => {
+          const s = await Pim.lade(true);
+          if (!s.pimVerfuegbar) { const e = new Error(s.hinweise[0] || "PIM nicht verfügbar"); e.nichtLizenziert = true; throw e; }
+        } },
+      { label: "PIM: Aktivierungsregeln lesen", test: () => Pim.regeln(true) },
+      { label: "PIM: überführen und aktivieren (RoleEligibility-/RoleAssignmentSchedule.ReadWrite)", test: () => getToken(CC_SCOPES.pim) },
+      { label: "PIM: Regeln ändern (RoleManagementPolicy.ReadWrite.Directory)", test: () => getToken(CC_SCOPES.pimRegeln) },
+      { label: "Gruppenmitglieder (GroupMember.Read.All)", test: () => getToken(CC_SCOPES.gruppen) },
+      { label: "Zugriffsüberprüfungen (AccessReview.Read.All)", test: () => Pim.zugriffspruefungen() },
       { label: "Geräte (DeviceManagement*.Read.All)", test: () => Purview.geraeteRichtlinien() },
       { label: "RMS: SoA und Risiken lesen", test: async () => { await Rms.soa(); await Rms.risiken(); } }
     ];
