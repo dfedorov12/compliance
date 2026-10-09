@@ -27,6 +27,7 @@ function renderRollen(el) {
     { key: "register",   label: "Rollenregister", render: renderRollenregister },
     { key: "umstellung", label: "Umstellung auf PIM", render: renderPimUmstellung },
     { key: "regeln",     label: "Aktivierungsregeln", render: renderPimRegeln },
+    { key: "technisch",  label: "Technische Identitäten", render: renderTechnischeIdentitaeten },
     { key: "meine",      label: "Meine Rollen", render: renderMeineRollen }
   ], tabWunsch("rollen"));
 }
@@ -208,7 +209,8 @@ async function renderPimUebersicht(el) {
             lizenz: "Lizenzen für Entra ID P2 zuweisen",
             regeln: "Hausstandard auf die Rollen anwenden",
             register: "Rollenregister vervollständigen",
-            pruefung: "Zuweisungen überprüfen und bestätigen" }[f.id.split(":")[0]] || ""
+            pruefung: "Zuweisungen überprüfen und bestätigen",
+            app: "Eigentümer festlegen, Geheimnisse erneuern, nicht benötigte Identitäten entfernen" }[f.id.split(":")[0]] || ""
         });
       };
     });
@@ -987,7 +989,8 @@ const CC_KBR_ABWEICHUNG = {
   pruefung: "Keine Überprüfung in den letzten zwölf Monaten",
   entfallen: "Entzug nicht dokumentiert",
   regeln: "Aktivierungsregeln weichen vom Hausstandard ab",
-  accessreview: "Keine automatische Zugriffsüberprüfung"
+  accessreview: "Keine automatische Zugriffsüberprüfung",
+  app: "Technische Identitäten nicht vollständig dokumentiert oder gepflegt"
 };
 
 function quartale(anzahl = 6) {
@@ -1112,9 +1115,10 @@ function pimArbeitsvorrat(register) {
     (nachDatum[f] = nachDatum[f] || []).push(r);
   });
   Object.entries(nachDatum).forEach(([datum, liste]) => out.push({
-    entity: "rollenregister", id: liste.length === 1 ? liste[0].id : "", datum, art: "Rollenprüfung (Anlage 3)",
-    was: liste.length === 1 ? `${liste[0].Rolle} · ${liste[0].Konto}` : `${liste.length} Rollenzuweisungen überprüfen`,
-    wer: k.verantwortlich, aktion: () => zeigeRollenTab("register")
+    entity: "rollenregister", id: liste.length === 1 ? liste[0].id : "", datum, art: "Überprüfung (Anlage 3)",
+    was: liste.length === 1 ? `${liste[0].Rolle} · ${liste[0].Konto}` : `${liste.length} Zuweisungen und Identitäten überprüfen`,
+    wer: k.verantwortlich,
+    aktion: liste.every(x => String(x.Title).startsWith("app:")) ? () => zeigeRollenTab("technisch") : () => zeigeRollenTab("register")
   }));
   if (k.notfallkonten.length) out.push({
     entity: "", id: "", datum: k.notfallGeprueft ? addiereTage(k.notfallGeprueft, k.notfallIntervall) : new Date().toISOString().slice(0, 10),
@@ -1122,4 +1126,155 @@ function pimArbeitsvorrat(register) {
     wer: k.verantwortlich, aktion: oeffneNotfalltest
   });
   return out;
+}
+
+// ===========================================================================
+// Technische Identitäten (§ 6)
+// ===========================================================================
+
+function appGeheimnisText(z) {
+  if (!z.geheimnisse.length) return `<span class="muted">${z.typ === "eigene App" ? "keine" : z.typ === "verwaltete Identität" ? "verwaltet Azure" : "beim Hersteller"}</span>`;
+  const teile = [];
+  if (z.naechsterAblauf) {
+    const t = Math.ceil((new Date(z.naechsterAblauf) - new Date()) / 86400000);
+    teile.push(`<span class="${z.laeuftAb ? "ueberfaellig" : ""}">gültig bis ${esc(fmtDatum(z.naechsterAblauf))}</span>${t <= 60 ? ` <span class="muted">(${t} T.)</span>` : ""}`);
+  }
+  if (z.langeLaufzeit.length) teile.push(`<span class="status st-yellow">Laufzeit über 2 Jahre</span>`);
+  if (z.abgelaufen.length) teile.push(`<span class="muted">${z.abgelaufen.length} abgelaufen</span>`);
+  return teile.join("<br>") || `<span class="muted">alle abgelaufen</span>`;
+}
+
+function appVorlage(z) {
+  return {
+    Title: "app:" + z.appId, Konto: z.name, Kontoart: "Technisch",
+    Rolle: z.rollen.length ? "Anwendungsberechtigungen und Verzeichnisrollen" : "Anwendungsberechtigungen",
+    RolleId: z.appId, Zuweisung: "dauerhaft", Eigentuemer: z.eigentuemer[0] || "", Quelle: "Entra ID"
+  };
+}
+
+// Registereintrag zu einer technischen Identität, mit allen Rechten im Kopf.
+function oeffneAppEintrag(z, neuladen) {
+  const heute = new Date().toISOString().slice(0, 10);
+  const v = appVorlage(z);
+  const werte = z.register ? { ...z.register, Konto: v.Konto, Rolle: v.Rolle, RolleId: v.RolleId, Zuweisung: v.Zuweisung, Quelle: v.Quelle }
+    : { ...v, LetztePruefung: heute, GeprueftVon: Store.benutzer.email };
+  const nachApi = {};
+  z.rechte.forEach(r => { (nachApi[r.api] = nachApi[r.api] || []).push(r); });
+  const kopf = `<table class="detail-table">
+      <tr><td class="dt">Art</td><td>${esc(z.typ)}${z.aktiviert === false ? ` <span class="status st-gray">deaktiviert</span>` : ""} · App-ID <code>${esc(z.appId)}</code>
+        · <a href="${esc(z.portal)}" target="_blank" rel="noopener">im Entra-Portal ↗</a></td></tr>
+      ${Object.entries(nachApi).map(([api, liste]) => `<tr><td class="dt">${esc(api)}</td><td>${liste.sort((a, b) => (b.kritisch - a.kritisch) || a.wert.localeCompare(b.wert))
+        .map(r => `<span class="chip${r.kritisch ? " chip-kritisch" : ""}" title="${esc(r.beschreibung)}">${esc(r.wert)}</span>`).join(" ")}</td></tr>`).join("")}
+      ${z.rollen.length ? `<tr><td class="dt">Verzeichnisrollen</td><td>${z.rollen.map(esc).join(", ")}</td></tr>` : ""}
+      <tr><td class="dt">Eigentümer in Entra ID</td><td>${z.eigentuemer.length ? z.eigentuemer.map(esc).join(", ") : `<span class="ueberfaellig">keine</span>`}</td></tr>
+      <tr><td class="dt">Geheimnisse</td><td>${z.geheimnisse.length ? z.geheimnisse.slice().sort((a, b) => String(b.ende).localeCompare(String(a.ende))).map(g =>
+        `${esc(g.art)}${g.name ? " „" + esc(g.name) + "“" : ""}: ${esc(fmtDatum(g.start))} bis <span class="${g.ende < new Date().toISOString() ? "muted" : ""}">${esc(fmtDatum(g.ende))}</span>`).join("<br>")
+        : `<span class="muted">${z.typ === "eigene App" ? "keine hinterlegt" : z.typ === "verwaltete Identität" ? "verwaltet Azure" : "verwaltet der Hersteller"}</span>`}</td></tr>
+      <tr><td class="dt">Letzte Anmeldung</td><td>${z.letzteAnmeldung === null ? `<span class="muted">nicht lesbar</span>` : z.letzteAnmeldung ? esc(fmtDatumZeit(z.letzteAnmeldung)) : `<span class="ueberfaellig">keine gefunden</span>`}</td></tr>
+    </table>
+    <p class="hint">§ 6: Rechte auf den Zweck beschränken, Eigentümer dokumentieren, Anmeldeinformationen schützen und
+      regelmäßig erneuern, nicht mehr benötigte Identitäten unverzüglich entfernen.</p>`;
+  if (!darfRollenVerwalten()) {
+    Dialog.zeige({ titel: z.name, breit: true, html: kopf });
+    return;
+  }
+  oeffneEditor("rollenregister", werte, neuladen, {
+    titel: `Technische Identität: ${z.name}`, html: kopf,
+    gesperrt: ["Konto", "Rolle", "RolleId", "Zuweisung", "ZugewiesenAm", "Befristung", "Quelle"]
+  });
+}
+
+async function renderTechnischeIdentitaeten(el) {
+  el.innerHTML = ladeBox("Anwendungen, Rechte und Anmeldungen werden gelesen …");
+  const neuladen = () => { Store.invalidate("rollenregister"); renderTechnischeIdentitaeten(el); };
+  let apps;
+  try { apps = await Pim.technischeIdentitaeten({ mitAnmeldung: true }); }
+  catch (e) { el.innerHTML = fehlerBox(e, "Technische Identitäten"); return; }
+  const register = await Store.loadOderLeer("rollenregister");
+  const t = bewerteTechnisch(apps, register);
+  const kz = t.kennzahlen;
+  const gemerkt = filterLesen("technisch");
+
+  el.innerHTML = `
+    <p class="hint">Anwendungen, Dienstprinzipale und verwaltete Identitäten mit Anwendungsberechtigungen auf Microsoft-Dienste
+      oder mit Verzeichnisrollen. Nach § 6 der Anlage gehören zu jeder ein Zweck und ein Eigentümer; Geheimnisse sind
+      regelmäßig zu erneuern, nicht mehr benötigte Identitäten zu entfernen. Microsoft-eigene Dienste werden gezeigt,
+      aber nicht bewertet.</p>
+    <div class="stat-row">
+      ${kachel("Technische Identitäten", kz.gesamt, `${kz.kritisch} mit weitreichenden Rechten`)}
+      ${kachel("Ohne Eigentümer", kz.ohneEigentuemer, "in Entra ID und Register")}
+      ${kachel("Geheimnis läuft ab", kz.laeuftAb, "in den nächsten 30 Tagen")}
+      ${kachel("Ohne Anmeldung", kz.anmeldungBekannt ? kz.inaktiv : "–", kz.anmeldungBekannt ? "seit 90 Tagen" : "nicht lesbar")}
+      ${kachel("Im Register", `${kz.dokumentiert}/${kz.gesamt}`, "Zweck und Eigentümer")}
+    </div>
+    ${t.feststellungen.length ? `<div class="banner banner-yellow"><strong>Feststellungen</strong><ul>${t.feststellungen.map(f =>
+      `<li>${esc(f.titel)} <span class="muted">(${esc(f.paragraf)})</span></li>`).join("")}</ul></div>` : ""}
+    <div class="filter-bar">
+      <input type="search" data-q placeholder="Anwendung oder Recht …" value="${esc(gemerkt.q || "")}">
+      <select data-typ><option value="">Art: alle</option>${["eigene App", "Fremd-App", "verwaltete Identität", "Microsoft-Dienst"]
+        .map(x => `<option${gemerkt.typ === x ? " selected" : ""}>${x}</option>`).join("")}</select>
+      <label class="checkline"><input type="checkbox" data-bedarf${gemerkt.bedarf ? " checked" : ""}> nur mit Handlungsbedarf</label>
+      <label class="checkline"><input type="checkbox" data-ms${gemerkt.ms ? " checked" : ""}> Microsoft-Dienste zeigen</label>
+      <button class="btn-csv" data-csv>CSV</button>
+    </div>
+    <div data-tabelle></div>
+    <p class="muted" data-anzahl></p>`;
+
+  let sichtbar = [];
+  const zeige = () => {
+    const q = el.querySelector("[data-q]").value.trim().toLowerCase();
+    const typ = el.querySelector("[data-typ]").value;
+    const bedarf = el.querySelector("[data-bedarf]").checked;
+    const ms = el.querySelector("[data-ms]").checked;
+    filterSchreiben("technisch", { q: el.querySelector("[data-q]").value, typ, bedarf, ms });
+    sichtbar = t.zeilen.filter(z => (ms || z.typ !== "Microsoft-Dienst" || typ === "Microsoft-Dienst") && (!typ || z.typ === typ) &&
+      (!q || `${z.name} ${z.appId} ${z.rechte.map(r => r.wert).join(" ")} ${z.rollen.join(" ")} ${z.eigentuemerAlle.join(" ")}`.toLowerCase().includes(q)) &&
+      (!bedarf || z.ohneEigentuemer || z.laeuftAb || z.inaktiv || z.langeLaufzeit.length || (z.bewertet && !z.dokumentiert)));
+    const box = el.querySelector("[data-tabelle]");
+    box.innerHTML = tabelleHtml(sichtbar, [
+      { key: "name", label: "Anwendung", render: z => `<strong>${esc(z.name)}</strong><br><span class="muted">${esc(z.typ)} · ${esc(String(z.appId || "").slice(0, 8))}${z.aktiviert === false ? ", deaktiviert" : ""}</span>` },
+      { key: "rechte", label: "Rechte", render: z => {
+          const k = z.rechte.filter(r => r.kritisch);
+          return `${z.rechte.length}${k.length ? ` <span class="muted">davon ${k.length} weitreichend</span><br>` + k.slice(0, 3).map(r => `<span class="chip chip-kritisch">${esc(r.wert)}</span>`).join(" ") + (k.length > 3 ? ` <span class="muted">+${k.length - 3}</span>` : "") : ""}` +
+            (z.rollen.length ? `<br><span class="muted">Rollen: ${esc(z.rollen.join(", "))}</span>` : "");
+        } },
+      { key: "eigentuemer", label: "Eigentümer", render: z => z.eigentuemerAlle.length ? esc(z.eigentuemerAlle.join(", ")) : z.bewertet ? `<span class="ueberfaellig">keiner</span>` : `<span class="muted">Microsoft</span>` },
+      { key: "geheim", label: "Geheimnisse", render: appGeheimnisText },
+      { key: "anmeldung", label: "Letzte Anmeldung", render: z => z.letzteAnmeldung === null ? `<span class="muted">–</span>`
+          : z.letzteAnmeldung ? `<span class="${z.inaktiv ? "ueberfaellig" : ""}">${esc(fmtDatum(z.letzteAnmeldung))}</span>` : `<span class="ueberfaellig">keine</span>` },
+      { key: "register", label: "Register", render: z => !z.bewertet ? "" : z.dokumentiert
+          ? `<span class="status ${z.pruefungFaellig ? "st-yellow" : "st-green"}">${z.pruefungFaellig ? "Prüfung fällig" : "vollständig"}</span>`
+          : `<span class="status st-red">unvollständig</span>` }
+    ], { leer: "Keine technischen Identitäten für diese Auswahl." });
+    el.querySelector("[data-anzahl]").textContent = `${sichtbar.length} von ${t.zeilen.length} Identitäten`;
+    box.querySelectorAll("[data-idx]").forEach(tr => { tr.onclick = () => oeffneAppEintrag(sichtbar[Number(tr.dataset.idx)], neuladen); });
+  };
+  el.querySelector("[data-q]").oninput = zeige;
+  el.querySelectorAll("[data-typ], [data-bedarf], [data-ms]").forEach(x => { x.onchange = zeige; });
+  el.querySelector("[data-csv]").onclick = () => csvExport(`Technische_Identitaeten_${new Date().toISOString().slice(0, 10)}.csv`, sichtbar, [
+    { key: "name", label: "Anwendung" }, { key: "typ", label: "Art" }, { key: "appId", label: "App-ID" },
+    { label: "Anwendungsberechtigungen", csv: z => z.rechte.map(r => `${r.api}: ${r.wert}`).join(", ") },
+    { label: "Verzeichnisrollen", csv: z => z.rollen.join(", ") },
+    { label: "Eigentümer", csv: z => z.eigentuemerAlle.join(", ") },
+    { label: "Nächster Ablauf", csv: z => String(z.naechsterAblauf).slice(0, 10) },
+    { label: "Letzte Anmeldung", csv: z => z.letzteAnmeldung === null ? "" : String(z.letzteAnmeldung).slice(0, 10) },
+    { label: "Zweck", csv: z => z.register ? z.register.Zweck || "" : "" },
+    { label: "Genehmigt von", csv: z => z.register ? z.register.GenehmigtVon || "" : "" },
+    { label: "Letzte Überprüfung", csv: z => z.register ? z.register.LetztePruefung || "" : "" }
+  ]);
+  zeige();
+}
+
+// Ablaufende Geheimnisse für den Arbeitsvorrat (nur für die zentrale IT).
+async function pimArbeitsvorratApps() {
+  if (!darfRollenVerwalten()) return [];
+  let apps;
+  try { apps = await Pim.technischeIdentitaeten(); } catch (e) { return []; }
+  const jetzt = new Date().toISOString();
+  const k = pimKonfig();
+  return apps.filter(a => a.typ !== "Microsoft-Dienst").flatMap(a => a.geheimnisse
+    .filter(g => g.ende && g.ende >= jetzt)
+    .map(g => ({ entity: "", id: "", datum: g.ende.slice(0, 10), art: "Geheimnis läuft ab", dringend: true,
+      was: `${a.name}: ${g.art}${g.name ? " „" + g.name + "“" : ""}`, wer: k.verantwortlich,
+      aktion: () => zeigeRollenTab("technisch") })));
 }

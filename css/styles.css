@@ -397,3 +397,4 @@ a.btn-ghost-dark, a.btn-primary, a.btn-secondary { text-decoration: none; displa
 .schritt-offen .schritt-nr { background: var(--yellow-bg); color: var(--yellow); }
 .schritt-text { flex: 1; font-size: 14px; }
 div.stat-link { cursor: pointer; }
+.chip-kritisch { border-color: var(--red); color: var(--red); background: var(--red-bg); }

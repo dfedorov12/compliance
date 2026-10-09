@@ -761,7 +761,9 @@ function bewerteAnlage3(stand, register, k, regeln = null, extra = {}) {
   if (ungeprueft.length) neu("pruefung", "mittel", "§ 11", `${ungeprueft.length} Zuweisung(en) ohne Überprüfung in den letzten zwölf Monaten`,
     "Privilegierte Rollen, technische Identitäten und Notfallkonten sind mindestens jährlich zu überprüfen.", "register", { anzahl: ungeprueft.length });
   const aktivKeys = new Set(zuweisungen.map(z => registerSchluessel(z)));
-  const entfallen = (register || []).filter(r => r.Quelle !== "manuell" && !r.Entzogen && r.Title && !aktivKeys.has(r.Title));
+  // Einträge „app:…“ gehören zu den technischen Identitäten, nicht zu Rollenzuweisungen.
+  const entfallen = (register || []).filter(r => r.Quelle !== "manuell" && !r.Entzogen && r.Title &&
+    !String(r.Title).startsWith("app:") && !aktivKeys.has(r.Title));
   if (entfallen.length) neu("entfallen", "niedrig", "§ 10, § 11", `${entfallen.length} Registereintrag/-einträge ohne bestehende Zuweisung`,
     "Die Rolle wurde entzogen oder ist abgelaufen. Bitte den Entzug im Register dokumentieren.", "register");
 
@@ -878,7 +880,199 @@ async function pimStand({ mitRegeln = true, mitExtras = true, force = false } = 
       });
       if (lesbar) extra.lizenzen = lizenzen;
     }
+    try { extra.apps = await Pim.technischeIdentitaeten({ mitAnmeldung: true }); } catch (e) { extra.appsFehler = e; }
   }
   const bewertung = bewerteAnlage3(stand, register, k, regeln, extra);
+  // Feststellungen zu technischen Identitäten (§ 6) gehören in dieselbe Liste.
+  if (extra.apps) {
+    bewertung.technisch = bewerteTechnisch(extra.apps, register);
+    const rang = { hoch: 0, mittel: 1, niedrig: 2 };
+    bewertung.feststellungen.push(...bewertung.technisch.feststellungen);
+    bewertung.feststellungen.sort((a, b) => rang[a.schwere] - rang[b.schwere]);
+    bewertung.kennzahlen.hoch = bewertung.feststellungen.filter(f => f.schwere === "hoch").length;
+    bewertung.kennzahlen.mittel = bewertung.feststellungen.filter(f => f.schwere === "mittel").length;
+  }
   return { k, stand, register, regeln, regelFehler, extra, bewertung };
+}
+
+// ---------------------------------------------------------------------------
+// Technische Identitäten (Anlage 3 § 6)
+// Anwendungen, Dienstprinzipale und verwaltete Identitäten mit
+// Anwendungsberechtigungen auf Microsoft-Dienste oder mit Verzeichnisrollen.
+// ---------------------------------------------------------------------------
+
+// Microsoft-APIs, deren Anwendungsberechtigungen geprüft werden (appId der Ressource).
+const CC_TECH_RESSOURCEN = {
+  "00000003-0000-0000-c000-000000000000": "Microsoft Graph",
+  "00000003-0000-0ff1-ce00-000000000000": "SharePoint",
+  "00000002-0000-0ff1-ce00-000000000000": "Exchange Online",
+  "c5393580-f805-4401-95e8-94b7a6ef2fc2": "Office 365 Management API",
+  "00000007-0000-0000-c000-000000000000": "Dynamics CRM",
+  "00000009-0000-0000-c000-000000000000": "Power BI",
+  "8ee8fdad-f234-4243-8f3b-15c294843740": "Microsoft Threat Protection",
+  "fc780465-2017-40d4-a0c5-307022471b92": "Defender for Endpoint"
+};
+
+// Mandanten, aus denen Microsofts eigene Dienste stammen.
+const CC_MICROSOFT_MANDANTEN = ["f8cdef31-a31e-4b4a-93e4-5f571e91255a", "72f988bf-86f1-41af-91ab-2d7cd011db47"];
+
+// Rechte mit weitem Zugriff: Schreiben im ganzen Verzeichnis, alle Postfächer,
+// alle Dateien und Sites, Rollen- und App-Verwaltung.
+const CC_KRITISCHE_RECHTE = new RegExp([
+  "ReadWrite\\.All$", "ReadWrite\\.Directory$", "FullControl", "full_access_as_app", "ManageAsApp",
+  "^Mail\\.(Read|ReadWrite|Send)$", "^(Calendars|Contacts|MailboxSettings)\\.ReadWrite$", "^Files\\.Read\\.All$",
+  "^Sites\\.Read\\.All$", "^Chat\\.Read", "^ChannelMessage\\.Read\\.All$", "PasswordProfile", "EnableDisableAccount",
+  "^Application\\.ReadWrite", "^AppRoleAssignment", "^RoleManagement", "^Policy\\.ReadWrite", "^Domain\\.ReadWrite",
+  "DeleteRestore", "^User\\.Export"
+].join("|"));
+
+Object.assign(Pim, {
+  _apps: null,
+
+  // Liest alle Dienstprinzipale mit Anwendungsberechtigungen auf die Microsoft-APIs,
+  // dazu Eigentümer, Geheimnisse und (mitAnmeldung) die letzte Anmeldung.
+  async technischeIdentitaeten({ mitAnmeldung = false, force = false } = {}) {
+    const c = this._apps;
+    if (!force && c && Date.now() - c.zeit < 600000 && (c.mitAnmeldung || !mitAnmeldung)) return c.liste;
+    const s = CC_SCOPES.apps;
+    const ids = Object.keys(CC_TECH_RESSOURCEN);
+    let ressourcen;
+    try {
+      ressourcen = await graphFetchAll(`/servicePrincipals?$filter=appId in (${ids.map(i => `'${i}'`).join(",")})&$select=id,appId,displayName,appRoles`, { scopes: s }, 50);
+    } catch (e) {
+      if (e.name === "BerechtigungFehlt" || e.status === 401 || e.status === 403) throw e;
+      ressourcen = [];
+      for (const id of ids) {
+        const r = await graphFetch(`/servicePrincipals?$filter=appId eq '${id}'&$select=id,appId,displayName,appRoles`, { scopes: s });
+        ressourcen.push(...(r.value || []));
+      }
+    }
+    const apps = {};
+    for (const res of ressourcen) {
+      const rollen = {};
+      (res.appRoles || []).forEach(r => { rollen[r.id] = r; });
+      const zuw = await graphFetchAll(`/servicePrincipals/${res.id}/appRoleAssignedTo?$top=999`, { scopes: s }, 5000);
+      zuw.filter(z => z.principalType === "ServicePrincipal").forEach(z => {
+        const a = apps[z.principalId] = apps[z.principalId] || { spId: z.principalId, name: z.principalDisplayName, rechte: [], rollen: [] };
+        const rolle = rollen[z.appRoleId] || {};
+        const wert = rolle.value || z.appRoleId;
+        a.rechte.push({ api: CC_TECH_RESSOURCEN[res.appId] || res.displayName, wert, beschreibung: rolle.displayName || "",
+          kritisch: CC_KRITISCHE_RECHTE.test(wert), seit: z.createdDateTime || "" });
+      });
+    }
+    // Dienstprinzipale mit Verzeichnisrollen gehören ebenfalls dazu (§ 6).
+    try {
+      const stand = await this.lade();
+      stand.zeilen.filter(z => z.principalTyp === "servicePrincipal").forEach(z => {
+        const a = apps[z.principalId] = apps[z.principalId] || { spId: z.principalId, name: z.name || z.konto, rechte: [], rollen: [] };
+        if (!a.rollen.includes(z.rolleName)) a.rollen.push(z.rolleName);
+      });
+    } catch (e) { /* ohne Rollendaten nur die Anwendungsberechtigungen */ }
+
+    await parallelAbarbeiten(Object.values(apps), 5, async a => {
+      const sp = await graphFetch(`/servicePrincipals/${a.spId}?$select=id,appId,displayName,appOwnerOrganizationId,servicePrincipalType,accountEnabled,passwordCredentials,keyCredentials`, { scopes: s });
+      a.appId = sp.appId;
+      a.name = sp.displayName || a.name;
+      a.aktiviert = sp.accountEnabled !== false;
+      a.eigenerMandant = sp.appOwnerOrganizationId === CC_CONFIG.tenantId;
+      a.typ = sp.servicePrincipalType === "ManagedIdentity" ? "verwaltete Identität"
+        : a.eigenerMandant ? "eigene App"
+        : CC_MICROSOFT_MANDANTEN.includes(sp.appOwnerOrganizationId) ? "Microsoft-Dienst" : "Fremd-App";
+      const geheim = (x, art) => ({ art, name: x.displayName || "", start: x.startDateTime || "", ende: x.endDateTime || "" });
+      a.geheimnisse = [...(sp.passwordCredentials || []).map(x => geheim(x, "Kennwort")), ...(sp.keyCredentials || []).map(x => geheim(x, "Zertifikat"))];
+      const besitzer = await graphFetchAll(`/servicePrincipals/${a.spId}/owners?$select=userPrincipalName,displayName`, { scopes: s }, 50).catch(() => []);
+      a.eigentuemer = besitzer.map(o => o.userPrincipalName || o.displayName).filter(Boolean);
+      if (a.eigenerMandant) {
+        const app = ((await graphFetch(`/applications?$filter=appId eq '${a.appId}'&$select=id,passwordCredentials,keyCredentials`, { scopes: s })).value || [])[0];
+        if (app) {
+          a.appObjektId = app.id;
+          a.geheimnisse.push(...(app.passwordCredentials || []).map(x => geheim(x, "Kennwort")), ...(app.keyCredentials || []).map(x => geheim(x, "Zertifikat")));
+          const appBesitzer = await graphFetchAll(`/applications/${app.id}/owners?$select=userPrincipalName,displayName`, { scopes: s }, 50).catch(() => []);
+          a.eigentuemer = [...new Set([...a.eigentuemer, ...appBesitzer.map(o => o.userPrincipalName || o.displayName).filter(Boolean)])];
+        }
+      }
+      // Zertifikate verwalteter Identitäten erneuert Azure selbst; sie werden nicht bewertet.
+      if (a.typ === "verwaltete Identität") a.geheimnisse = [];
+      a.portal = `https://entra.microsoft.com/#view/Microsoft_AAD_IAM/ManagedAppMenuBlade/~/Permissions/objectId/${a.spId}/appId/${a.appId}`;
+      a.letzteAnmeldung = null;   // null = unbekannt, "" = keine Anmeldung gefunden
+    });
+
+    const liste = Object.values(apps).sort((x, y) => x.name.localeCompare(y.name, "de"));
+    if (mitAnmeldung) {
+      let lesbar = true;
+      await parallelAbarbeiten(liste.filter(a => a.typ !== "Microsoft-Dienst"), 5, async a => {
+        if (!lesbar) return;
+        try {
+          const r = await graphFetch(`/reports/servicePrincipalSignInActivities?$filter=appId eq '${a.appId}'`, { version: "beta", scopes: CC_SCOPES.entraAudit });
+          const x = (r.value || [])[0];
+          a.letzteAnmeldung = x && x.lastSignInActivity ? (x.lastSignInActivity.lastSignInDateTime || "") : "";
+        } catch (e) { lesbar = false; }
+      });
+    }
+    this._apps = { zeit: Date.now(), liste, mitAnmeldung };
+    return liste;
+  }
+});
+
+// Bewertung nach § 6: Eigentümer, Rotation der Geheimnisse, nicht mehr benötigte
+// Identitäten, Register. Microsoft-eigene Dienste werden angezeigt, aber nicht bewertet.
+function bewerteTechnisch(apps, register) {
+  const jetzt = new Date().toISOString();
+  const in30 = new Date(Date.now() + 30 * 86400000).toISOString();
+  const vor90 = new Date(Date.now() - 90 * 86400000).toISOString();
+  const vorJahr = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+  const reg = {};
+  (register || []).forEach(r => { if (r.Title) reg[r.Title] = r; });
+  const zeilen = (apps || []).map(a => {
+    const r = reg["app:" + a.appId] || null;
+    const gueltig = a.geheimnisse.filter(g => g.ende && g.ende >= jetzt);
+    const abgelaufen = a.geheimnisse.filter(g => g.ende && g.ende < jetzt);
+    const naechster = gueltig.map(g => g.ende).sort()[0] || "";
+    const lang = gueltig.filter(g => g.start && (new Date(g.ende) - new Date(g.start)) > 730 * 86400000);
+    const eigentuemer = [...a.eigentuemer, ...(r && r.Eigentuemer ? [r.Eigentuemer] : [])];
+    const bewertet = a.typ !== "Microsoft-Dienst";
+    return {
+      ...a, register: r, bewertet,
+      kritisch: a.rechte.some(x => x.kritisch) || a.rollen.length > 0,
+      gueltig, abgelaufen, naechsterAblauf: naechster, langeLaufzeit: lang, eigentuemerAlle: eigentuemer,
+      ohneEigentuemer: bewertet && !eigentuemer.length,
+      laeuftAb: bewertet && !!naechster && naechster <= in30,
+      inaktiv: bewertet && a.letzteAnmeldung !== null && (!a.letzteAnmeldung || a.letzteAnmeldung < vor90),
+      dokumentiert: !!(r && String(r.Zweck || "").trim() && (String(r.Eigentuemer || "").trim() || a.eigentuemer.length)),
+      pruefungFaellig: !r || !r.LetztePruefung || r.LetztePruefung < vorJahr
+    };
+  });
+  const fs = [];
+  const namen = l => l.slice(0, 6).join(", ") + (l.length > 6 ? ` und ${l.length - 6} weitere` : "");
+  const neu = (id, schwere, paragraf, titel, text, anzahl) => fs.push({ id, schwere, paragraf, titel, text, ziel: "technisch", anzahl });
+  const b = zeilen.filter(z => z.bewertet);
+  const ohne = b.filter(z => z.ohneEigentuemer);
+  if (ohne.length) neu("app:eigentuemer", "mittel", "§ 6", `${ohne.length} technische Identität(en) ohne Eigentümer`,
+    `Berechtigungen und Eigentümer sind zu dokumentieren: ${namen(ohne.map(z => z.name))}.`, ohne.length);
+  const bald = b.filter(z => z.laeuftAb);
+  if (bald.length) neu("app:ablauf", "mittel", "§ 6", `${bald.length} Geheimnis(se) laufen in den nächsten 30 Tagen ab`,
+    `Rechtzeitig erneuern, sonst bricht der Dienst ab: ${namen(bald.map(z => `${z.name} (${fmtDatum(z.naechsterAblauf)})`))}.`, bald.length);
+  const lang = b.filter(z => z.langeLaufzeit.length);
+  if (lang.length) neu("app:rotation", "mittel", "§ 6", `${lang.length} Identität(en) mit Geheimnissen über zwei Jahre Laufzeit`,
+    `Anmeldeinformationen sind regelmäßig zu erneuern: ${namen(lang.map(z => z.name))}.`, lang.length);
+  const inaktiv = b.filter(z => z.inaktiv && (z.rechte.length || z.rollen.length));
+  if (inaktiv.length) neu("app:inaktiv", "mittel", "§ 6", `${inaktiv.length} Identität(en) mit Rechten ohne Anmeldung seit 90 Tagen`,
+    `Nicht mehr benötigte Identitäten und Berechtigungen sind unverzüglich zu deaktivieren oder zu entfernen. Prüfen: ${namen(inaktiv.map(z => z.name))}.`, inaktiv.length);
+  const alt = b.filter(z => z.abgelaufen.length);
+  if (alt.length) neu("app:abgelaufen", "niedrig", "§ 6", `${alt.length} Identität(en) mit abgelaufenen Geheimnissen`,
+    `Abgelaufene Geheimnisse entfernen, damit klar ist, welche gültig sind: ${namen(alt.map(z => z.name))}.`, alt.length);
+  const undok = b.filter(z => !z.dokumentiert);
+  if (undok.length) neu("app:register", "niedrig", "§ 6, § 10", `${undok.length} technische Identität(en) ohne Zweck oder Eigentümer im Register`,
+    "Für jede technische Identität Zweck, genehmigende Stelle und Eigentümer erfassen.", undok.length);
+  const ungeprueft = b.filter(z => z.dokumentiert && z.pruefungFaellig);
+  if (ungeprueft.length) neu("app:pruefung", "mittel", "§ 11", `${ungeprueft.length} technische Identität(en) ohne Überprüfung in den letzten zwölf Monaten`,
+    "Technische Identitäten sind mindestens jährlich zu überprüfen.", ungeprueft.length);
+  return {
+    zeilen, feststellungen: fs,
+    kennzahlen: {
+      gesamt: b.length, kritisch: b.filter(z => z.kritisch).length, ohneEigentuemer: ohne.length,
+      laeuftAb: bald.length, inaktiv: inaktiv.length, dokumentiert: b.filter(z => z.dokumentiert).length,
+      anmeldungBekannt: b.some(z => z.letzteAnmeldung !== null)
+    }
+  };
 }

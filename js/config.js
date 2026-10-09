@@ -59,7 +59,9 @@ const CC_SCOPES = {
   pim:         ["RoleEligibilitySchedule.ReadWrite.Directory", "RoleAssignmentSchedule.ReadWrite.Directory"],
   pimRegeln:   ["RoleManagementPolicy.ReadWrite.Directory"],
   gruppen:     ["GroupMember.Read.All"],
-  zugriffspruefungen: ["AccessReview.Read.All"]
+  zugriffspruefungen: ["AccessReview.Read.All"],
+  // Technische Identitäten (Anlage 3 § 6): Apps, Rechte, Eigentümer, Geheimnisse.
+  apps:        ["Application.Read.All"]
 };
 
 // Namen der SharePoint-Listen (zentral, damit Provisionierung und App identisch sind).

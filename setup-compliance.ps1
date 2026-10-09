@@ -50,6 +50,7 @@ $Scopes = @(
     "RoleManagement.Read.Directory"          # Verzeichnisrollen, PIM-Zuweisungen und -Regeln lesen
     "GroupMember.Read.All"                   # Mitglieder rollenzuweisbarer Gruppen (Anlage 3)
     "AccessReview.Read.All"                  # Zugriffsueberpruefungen anzeigen (Anlage 3 Par. 11)
+    "Application.Read.All"                   # Technische Identitaeten: Apps, Rechte, Eigentuemer, Geheimnisse (Par. 6)
     "DeviceManagementConfiguration.Read.All" # Geraetekonformitaetsrichtlinien
     "DeviceManagementManagedDevices.Read.All"# Verwaltete Geraete
 )

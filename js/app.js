@@ -315,6 +315,7 @@ async function renderEinstellungen(el) {
       { label: "PIM: Regeln ändern (RoleManagementPolicy.ReadWrite.Directory)", test: () => getToken(CC_SCOPES.pimRegeln) },
       { label: "Gruppenmitglieder (GroupMember.Read.All)", test: () => getToken(CC_SCOPES.gruppen) },
       { label: "Zugriffsüberprüfungen (AccessReview.Read.All)", test: () => Pim.zugriffspruefungen() },
+      { label: "Technische Identitäten (Application.Read.All)", test: () => Pim.technischeIdentitaeten({ force: true }) },
       { label: "Geräte (DeviceManagement*.Read.All)", test: () => Purview.geraeteRichtlinien() },
       { label: "RMS: SoA und Risiken lesen", test: async () => { await Rms.soa(); await Rms.risiken(); } }
     ];

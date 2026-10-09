@@ -70,6 +70,7 @@ privilegierte Rollen“ ist, kann über das Cockpit auch keine PIM-Regeln änder
 | `RoleManagementPolicy.ReadWrite.Directory` | Hausstandard auf die Aktivierungsregeln anwenden |
 | `GroupMember.Read.All` | Mitglieder von Gruppen, denen eine Rolle zugewiesen ist (zählen bei den Höchstzahlen mit) |
 | `AccessReview.Read.All` | eingerichtete Zugriffsüberprüfungen anzeigen |
+| `Application.Read.All` | technische Identitäten: Apps, Anwendungsberechtigungen, Eigentümer, Ablauf der Geheimnisse |
 | `DeviceManagementConfiguration.Read.All`, `DeviceManagementManagedDevices.Read.All` | Intune |
 
 ### 3.2 Listen anlegen
@@ -134,6 +135,15 @@ Die Prüfung zählt nach § 2.3 nur **gleichzeitig aktive personenbezogene** Inh
 Zuweisungen und gerade aktivierte Rollen, auch über Gruppen. Nur berechtigte Personen,
 Notfallkonten, Dienstprinzipale und als „Technisch“ markierte Konten zählen nicht. Wesentliche
 Feststellungen lassen sich mit „Ins RMS“ als Abweichung mit Korrekturmaßnahme übernehmen.
+
+**Technische Identitäten (§ 6):** Der Reiter listet alle Apps, Dienstprinzipale und verwalteten Identitäten
+mit Anwendungsberechtigungen auf Microsoft Graph, SharePoint, Exchange Online und weitere Microsoft-APIs
+sowie Dienstprinzipale mit Verzeichnisrollen. Weitreichende Rechte (Schreiben im ganzen Verzeichnis, alle
+Postfächer, alle Sites, Rollen- und App-Verwaltung) sind rot markiert. Geprüft werden Eigentümer, Geheimnisse
+(Ablauf in 30 Tagen, Laufzeit über zwei Jahre, abgelaufene), Anmeldung in den letzten 90 Tagen und der
+Registereintrag mit Zweck und Eigentümer (Schlüssel `app:<App-ID>` in `Compliance_Rollenregister`).
+Microsoft-eigene Dienste werden gezeigt, aber nicht bewertet. Die letzte Anmeldung kann nur lesen, wer eine
+Leserolle für Berichte hat (z. B. Globaler Leser oder Berichtleseberechtigter); sonst bleibt die Spalte leer.
 
 **Aktivieren:** Unter „Meine Rollen“ aktiviert jede berechtigte Person ihre Rolle mit Zweck nach § 8,
 Begründung und Dauer. Wer im Entra-Portal aktiviert, beginnt die Begründung mit dem Zweck in eckigen

@@ -87,6 +87,7 @@ async function sammleArbeitsvorrat() {
     .forEach(a => neu("anfragen", a, a.Frist, "Betroffenenanfrage", `${a.Title} · ${a.Art}`, a.Verantwortlich || dsb, { dringend: true }));
   // Jährliche Überprüfung der Admin-Rollen und Notfalltest (Anlage 3).
   liste.push(...pimArbeitsvorrat(d.rollenregister));
+  liste.push(...await pimArbeitsvorratApps());
   // ISMS-Fristen aus dem RMS (Risiko-Reviews, Maßnahmen); öffnen sich dort.
   liste.push(...await rmsArbeitsvorrat());
 

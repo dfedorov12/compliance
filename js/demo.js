@@ -376,6 +376,35 @@
   const offeneGenehmigungen = [{ id: "pa1", approvalId: "ap1", rolleId: ROLLE.ca, rolle: "Administrator für bedingten Zugriff",
     wer: "it@dihag.com", zeit: isoTage(-0.1), begruendung: "[Administration und technischer Support] Ausnahme für Scanner-Konto anlegen", dauer: "PT2H" }];
 
+  // Technische Identitäten (§ 6)
+  const recht = (api, wert) => ({ api, wert, beschreibung: "", kritisch: CC_KRITISCHE_RECHTE.test(wert), seit: isoTage(-400) });
+  const portal = id => "https://entra.microsoft.com/#view/Microsoft_AAD_IAM/ManagedAppMenuBlade/~/Permissions/objectId/" + id;
+  const geheim = (art, name, start, ende) => ({ art, name, start: isoTage(start), ende: isoTage(ende) });
+  const demoApps = [
+    { spId: "sp-cron", appId: "089bf9ad-demo", name: "DIHAG Cron-Job", typ: "eigene App", eigenerMandant: true, aktiviert: true,
+      rechte: [recht("Microsoft Graph", "Sites.Selected"), recht("Microsoft Graph", "Mail.Send"), recht("Microsoft Graph", "RoleAssignmentSchedule.Read.Directory")],
+      rollen: ["Verzeichnisleseberechtigter"], eigentuemer: [], geheimnisse: [geheim("Kennwort", "GitHub Actions", -300, 55)],
+      letzteAnmeldung: isoTage(-1), portal: portal("sp-cron") },
+    { spId: "sp-pa", appId: "pa-demo", name: "PoweAutomate_Graph", typ: "eigene App", eigenerMandant: true, aktiviert: true,
+      rechte: ["Directory.ReadWrite.All", "User-PasswordProfile.ReadWrite.All", "User.EnableDisableAccount.All", "Group.ReadWrite.All", "User.Read.All"].map(w => recht("Microsoft Graph", w)),
+      rollen: [], eigentuemer: [], geheimnisse: [geheim("Kennwort", "Flow", -700, 20)], letzteAnmeldung: isoTage(-2), portal: portal("sp-pa") },
+    { spId: "sp-syn", appId: "syn-demo", name: "Synology Active Backup for M365", typ: "eigene App", eigenerMandant: true, aktiviert: true,
+      rechte: ["Sites.FullControl.All", "Mail.ReadWrite", "Files.ReadWrite.All"].map(w => recht("Microsoft Graph", w)),
+      rollen: [], eigentuemer: ["it@dihag.com"], geheimnisse: [geheim("Kennwort", "", -900, 21000)], letzteAnmeldung: isoTage(-1), portal: portal("sp-syn") },
+    { spId: "sp-c2", appId: "c2-demo", name: "CodeTwo Office 365 Migration Target", typ: "eigene App", eigenerMandant: true, aktiviert: true,
+      rechte: ["Directory.ReadWrite.All", "User.ReadWrite.All"].map(w => recht("Microsoft Graph", w)),
+      rollen: [], eigentuemer: ["administrator@dihag.com"], geheimnisse: [geheim("Kennwort", "Migration", -800, 430), geheim("Kennwort", "alt", -1200, -400)],
+      letzteAnmeldung: isoTage(-310), portal: portal("sp-c2") },
+    { spId: "sp-cove", appId: "cove-demo", name: "Cove M365: Surf", typ: "Fremd-App", eigenerMandant: false, aktiviert: true,
+      rechte: ["Sites.FullControl.All", "Mail.ReadWrite", "Chat.Read.All", "Team.ReadBasic.All"].map(w => recht("Microsoft Graph", w)),
+      rollen: [], eigentuemer: [], geheimnisse: [], letzteAnmeldung: isoTage(-1), portal: portal("sp-cove") },
+    { spId: "sp-aa", appId: "aa-demo", name: "Azure-Automation-PS-Konto", typ: "verwaltete Identität", eigenerMandant: false, aktiviert: true,
+      rechte: [recht("Microsoft Graph", "Directory.ReadWrite.All"), recht("Exchange Online", "Exchange.ManageAsApp")],
+      rollen: ["Exchange-Administrator"], eigentuemer: [], geheimnisse: [], letzteAnmeldung: isoTage(-6), portal: portal("sp-aa") },
+    { spId: "sp-ms", appId: "ms-demo", name: "Microsoft Office 365 Portal", typ: "Microsoft-Dienst", eigenerMandant: false, aktiviert: true,
+      rechte: [], rollen: ["Globaler Administrator"], eigentuemer: [], geheimnisse: [], letzteAnmeldung: null, portal: portal("sp-ms") }
+  ];
+
   Object.assign(Pim, {
     ich: async () => ({ id: "u-fedorov", userPrincipalName: "fedorov@dihag.com", displayName: "Denis Fedorov" }),
     lade: async () => {
@@ -434,7 +463,8 @@
     antragZurueckziehen: async () => {},
     zuGenehmigen: async () => offeneGenehmigungen,
     entscheide: async antrag => { offeneGenehmigungen.splice(offeneGenehmigungen.indexOf(antrag), 1); toast("Demo-Modus: Entscheidung nicht an Entra ID gesendet."); },
-    aktivierungenAusPim: async () => demoAktivierungen.map(a => ({ ...a }))
+    aktivierungenAusPim: async () => demoAktivierungen.map(a => ({ ...a })),
+    technischeIdentitaeten: async () => demoApps
   });
 
   document.addEventListener("DOMContentLoaded", () => {
