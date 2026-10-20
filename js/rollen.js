@@ -1194,6 +1194,12 @@ async function renderTechnischeIdentitaeten(el) {
   const t = bewerteTechnisch(apps, register);
   const kz = t.kennzahlen;
   const gemerkt = filterLesen("technisch");
+  const darf = darfRollenVerwalten();
+  const auswahl = new Set();
+  const zeigeLeiste = () => {
+    el.querySelector("[data-leiste]").hidden = auswahl.size === 0;
+    el.querySelector("[data-zahl]").textContent = `${auswahl.size} markiert`;
+  };
 
   el.innerHTML = `
     <p class="hint">Anwendungen, Dienstprinzipale und verwaltete Identitäten mit Anwendungsberechtigungen auf Microsoft-Dienste
@@ -1217,8 +1223,30 @@ async function renderTechnischeIdentitaeten(el) {
       <label class="checkline"><input type="checkbox" data-ms${gemerkt.ms ? " checked" : ""}> Microsoft-Dienste zeigen</label>
       <button class="btn-csv" data-csv>CSV</button>
     </div>
+    <div class="sammelleiste" data-leiste hidden>
+      <span data-zahl></span>
+      <button class="btn-primary btn-small" data-pruefen>Überprüfung bestätigen</button>
+    </div>
     <div data-tabelle></div>
     <p class="muted" data-anzahl></p>`;
+
+  // Jährliche Überprüfung (§ 11) für mehrere Identitäten auf einmal bestätigen.
+  el.querySelector("[data-pruefen]").onclick = async () => {
+    const liste = t.zeilen.filter(z => auswahl.has(z.appId));
+    if (!confirm(`${liste.length} technische Identität(en) als überprüft bestätigen? Damit erklären Sie, dass Zweck, Rechte und Eigentümer noch stimmen.`)) return;
+    const aenderung = { LetztePruefung: new Date().toISOString().slice(0, 10), GeprueftVon: Store.benutzer.email };
+    let n = 0;
+    const fehler = [];
+    await parallelAbarbeiten(liste, 4, async z => {
+      try {
+        if (z.register) await Store.save("rollenregister", z.register.id, aenderung);
+        else await Store.save("rollenregister", null, { ...appVorlage(z), ...aenderung });
+        n++;
+      } catch (e) { fehler.push(`${z.name}: ${e.message}`); }
+    });
+    toast(fehler.length ? `${n} bestätigt, ${fehler.length} fehlgeschlagen (${fehler[0]})` : `${n} Überprüfung(en) bestätigt.`, fehler.length ? 9000 : 4000);
+    neuladen();
+  };
 
   let sichtbar = [];
   const zeige = () => {
@@ -1242,12 +1270,16 @@ async function renderTechnischeIdentitaeten(el) {
       { key: "geheim", label: "Geheimnisse", render: appGeheimnisText },
       { key: "anmeldung", label: "Letzte Anmeldung", render: z => z.letzteAnmeldung === null ? `<span class="muted">–</span>`
           : z.letzteAnmeldung ? `<span class="${z.inaktiv ? "ueberfaellig" : ""}">${esc(fmtDatum(z.letzteAnmeldung))}</span>` : `<span class="ueberfaellig">keine</span>` },
-      { key: "register", label: "Register", render: z => !z.bewertet ? "" : z.dokumentiert
+      { key: "register", label: "Register", render: z => z.ruhend && z.typ !== "Microsoft-Dienst" ? `<span class="status st-gray">deaktiviert</span>` : !z.bewertet ? "" : z.dokumentiert
           ? `<span class="status ${z.pruefungFaellig ? "st-yellow" : "st-green"}">${z.pruefungFaellig ? "Prüfung fällig" : "vollständig"}</span>`
           : `<span class="status st-red">unvollständig</span>` }
-    ], { leer: "Keine technischen Identitäten für diese Auswahl." });
-    el.querySelector("[data-anzahl]").textContent = `${sichtbar.length} von ${t.zeilen.length} Identitäten`;
-    box.querySelectorAll("[data-idx]").forEach(tr => { tr.onclick = () => oeffneAppEintrag(sichtbar[Number(tr.dataset.idx)], neuladen); });
+    ], { leer: "Keine technischen Identitäten für diese Auswahl.", auswahl: darf ? auswahl : null });
+    el.querySelector("[data-anzahl]").textContent = `${sichtbar.length} von ${t.zeilen.length} Identitäten` +
+      (kz.deaktiviert ? `, davon ${kz.deaktiviert} deaktiviert` : "");
+    box.querySelectorAll("[data-idx]").forEach(tr => {
+      tr.onclick = ev => { if (!ev.target.closest(".auswahl-zelle")) oeffneAppEintrag(sichtbar[Number(tr.dataset.idx)], neuladen); };
+    });
+    auswahlVerbinden(box, sichtbar.map(z => ({ ...z, id: z.appId })), auswahl, zeigeLeiste, z => !z.bewertet);
   };
   el.querySelector("[data-q]").oninput = zeige;
   el.querySelectorAll("[data-typ], [data-bedarf], [data-ms]").forEach(x => { x.onchange = zeige; });

@@ -1030,9 +1030,11 @@ function bewerteTechnisch(apps, register) {
     const naechster = gueltig.map(g => g.ende).sort()[0] || "";
     const lang = gueltig.filter(g => g.start && (new Date(g.ende) - new Date(g.start)) > 730 * 86400000);
     const eigentuemer = [...a.eigentuemer, ...(r && r.Eigentuemer ? [r.Eigentuemer] : [])];
-    const bewertet = a.typ !== "Microsoft-Dienst";
+    // Deaktiviert (in Entra ID oder laut Register entzogen) erfüllt § 6 bereits.
+    const ruhend = a.aktiviert === false || !!(r && r.Entzogen);
+    const bewertet = a.typ !== "Microsoft-Dienst" && !ruhend;
     return {
-      ...a, register: r, bewertet,
+      ...a, register: r, bewertet, ruhend,
       kritisch: a.rechte.some(x => x.kritisch) || a.rollen.length > 0,
       gueltig, abgelaufen, naechsterAblauf: naechster, langeLaufzeit: lang, eigentuemerAlle: eigentuemer,
       ohneEigentuemer: bewertet && !eigentuemer.length,
@@ -1072,7 +1074,8 @@ function bewerteTechnisch(apps, register) {
     kennzahlen: {
       gesamt: b.length, kritisch: b.filter(z => z.kritisch).length, ohneEigentuemer: ohne.length,
       laeuftAb: bald.length, inaktiv: inaktiv.length, dokumentiert: b.filter(z => z.dokumentiert).length,
-      anmeldungBekannt: b.some(z => z.letzteAnmeldung !== null)
+      anmeldungBekannt: b.some(z => z.letzteAnmeldung !== null),
+      deaktiviert: zeilen.filter(z => z.ruhend && z.typ !== "Microsoft-Dienst").length
     }
   };
 }
